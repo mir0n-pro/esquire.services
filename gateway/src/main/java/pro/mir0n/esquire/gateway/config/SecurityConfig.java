@@ -44,6 +44,7 @@
  *                   claimsCache bean always started, claims-uri required (assertOAuthWiring); the
  *                   evictionListener bean; AuthenticationConverter for every token; EsqClaimsValidator with no
  *                   client list; log prefix OAUTH
+ * 11/25/2026 mir0n  v2.0.3 -- .oauth2Client() out; 
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -54,7 +55,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
@@ -205,7 +205,7 @@ public class SecurityConfig {
                 .authorizeExchange(exchanges -> exchanges
                     .pathMatchers(HttpMethod.OPTIONS,"/**").permitAll()
                     .pathMatchers("/esq-kinds").permitAll()
-                    .pathMatchers("/esq*").hasRole("TREE")  // authenticated + TREE realm role
+                    .pathMatchers("/esq*").hasRole("TREE")  // authenticated + the TREE role
                     .anyExchange().permitAll()
                 )
                 .exceptionHandling(spec -> spec.accessDeniedHandler(new EsqAccessDeniedHandler()))
@@ -213,7 +213,6 @@ public class SecurityConfig {
                 // ROLE_TREE would never be present
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwtSpec ->
                         jwtSpec.jwtAuthenticationConverter(authenticationConverter)))
-                .oauth2Client(Customizer.withDefaults())
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance());
         return serverHttpSecurity.build();
     }

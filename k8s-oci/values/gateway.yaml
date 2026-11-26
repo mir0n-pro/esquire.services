@@ -17,7 +17,6 @@ keycloak:
   port: 8080
   path: /kc-auth                    # matches KC_HTTP_RELATIVE_PATH set on KC pod (v1.2.3)
   realm: esquire
-  clientId: esq-angular
 
 backends:
   biztreeHost: esquire-biztree-biztree

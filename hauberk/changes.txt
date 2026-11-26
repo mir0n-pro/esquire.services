@@ -1,5 +1,10 @@
 hauberk changes
 
+11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
+reconcile.KcRecover
+  - the two stores are paired by login id (au_login_id = the KC username, in lower case), not by esq_uid;
+    EMAIL_MISMATCH: the KC email against esq_auth.au_email; EsqUser / KcUser carry the email
+
 11/24/2026 mir0n  v2.0.3 -- one kind of sign-in: the relay and lab clients and race-8c out
 chain.ConnectUser
   - javadoc: kcMaster assigns no realm roles; the roles stay on the access profile

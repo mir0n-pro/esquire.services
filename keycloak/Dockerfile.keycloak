@@ -10,7 +10,7 @@
 # nobody said so. The cloud keeps its single release tag for the whole stack; the labels still say what is
 # inside it.
 ARG BASE=quay.io/keycloak/keycloak:26.4.7
-ARG PIN=v2.0.3-2611.2418
+ARG PIN=v2.0.3-2611.2516
 
 FROM ${BASE}
 ARG BASE

@@ -56,7 +56,7 @@ public class SecurityConfiguration {
             .cors(cors -> cors.configurationSource(corsAllowAll()))
             .authorizeHttpRequests(auth -> auth
                 //xxx: /esq-claims is open on the service side: the gateway asks it before any claim is known,
-                // and no gateway route exposes it -- the network is its only guard (pure OAuth lab)
+                // and no gateway route exposes it -- the network is its only guard
                 .requestMatchers("/api/public/**", "/swagger-ui/**", "/actuator/**", "/v3/api-docs/**",
                                  "/esq-kinds", "/esq-claims")
                     .permitAll()

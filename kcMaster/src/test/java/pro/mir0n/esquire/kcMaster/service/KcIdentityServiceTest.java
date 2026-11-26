@@ -16,7 +16,6 @@ import pro.mir0n.esquire.backend.identity.KcConnectionSettings;
 import pro.mir0n.esquire.kcMaster.service.impl.KcIdentityService;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,7 +57,7 @@ class KcIdentityServiceTest {
 
         service.updateUserAuthState(
                 "alice", null, "alice@example.com", false, null,
-                null, null, "cid", "rid");
+                null, "cid", "rid");
 
         verify(userResource, never()).update(any());
     }
@@ -71,7 +70,7 @@ class KcIdentityServiceTest {
 
         service.updateUserAuthState(
                 "alice", null, "newalice@example.com", false, null,
-                null, null, "cid", "rid");
+                null, "cid", "rid");
 
         verify(userResource).update(any());
     }
@@ -84,7 +83,7 @@ class KcIdentityServiceTest {
 
         service.updateUserAuthState(
                 "alice", null, "alice@example.com", false, null,
-                null, null, "cid", "rid");
+                null, "cid", "rid");
 
         verify(userResource, never()).update(any());
     }
@@ -97,7 +96,7 @@ class KcIdentityServiceTest {
 
         service.updateUserAuthState(
                 "alice", null, null, true, null,
-                null, null, "cid", "rid");
+                null, "cid", "rid");
 
         verify(userResource).update(any());
     }
@@ -110,7 +109,7 @@ class KcIdentityServiceTest {
 
         service.updateUserAuthState(
                 "alice", null, null, false, Boolean.TRUE,
-                null, null, "cid", "rid");
+                null, "cid", "rid");
 
         verify(userResource).update(any());
     }
@@ -123,21 +122,7 @@ class KcIdentityServiceTest {
 
         service.updateUserAuthState(
                 "alice", "alice2", null, false, null,
-                null, null, "cid", "rid");
-
-        verify(userResource).update(any());
-    }
-
-    @Test
-    @DisplayName("updateUserAuthState: attributes provided -- update called")
-    void updateUserAuthState_attributesProvided_callsUpdate() {
-        UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
-        stubLoginSearch("alice", rep);
-
-        Map<String, List<String>> attrs = Map.of("custom-attr", List.of("val"));
-        service.updateUserAuthState(
-                "alice", null, null, false, null,
-                null, attrs, "cid", "rid");
+                null, "cid", "rid");
 
         verify(userResource).update(any());
     }
@@ -170,7 +155,7 @@ class KcIdentityServiceTest {
 
         assertThatThrownBy(() ->
                 service.createUser("alice", "alice@example.com", "changeit", true, false, false,
-                        null, "cid", "rid"))
+                        "cid", "rid"))
                 .isInstanceOf(RuntimeException.class);
 
         verify(created).close();
@@ -185,7 +170,7 @@ class KcIdentityServiceTest {
 
         assertThatThrownBy(() ->
                 service.createUser("alice", "alice@example.com", null, true, false, false,
-                        null, "cid", "rid"))
+                        "cid", "rid"))
                 .isInstanceOf(RuntimeException.class);
 
         verify(refused).close();

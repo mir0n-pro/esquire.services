@@ -424,7 +424,6 @@ services:
       - KEYCLOAK_PORT=8081
       - KEYCLOAK_PATH=/kc-auth
       - KEYCLOAK_REALM=esquire
-      - KEYCLOAK_CLIENT_ID=esq-angular
       - CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:3000
       - GW_SERVICE_METRICS_ENABLED=true
       # OAuth -- the token carries the login id only; gateWard asks keySmith in mesnie for the Esquire

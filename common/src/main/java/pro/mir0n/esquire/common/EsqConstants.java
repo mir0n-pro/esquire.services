@@ -31,6 +31,7 @@
  * 11/23/2026 mir0n  v2.0.3 -- JWT_CLAIM_PREFERRED_USERNAME added; PROP_PURE_OAUTH_CLIENTS,
  *                   JWT_CLAIM_REALM_ACCESS and JWT_CLAIM_REALM_ACCESS_ROLES removed
  * 11/24/2026 mir0n  v2.0.3 -- PROP_PURE_OAUTH, ESQ_GW_INNER_START_TIME and PD_DETAILS removed
+ * 11/25/2026 mir0n  v2.0.3 -- JWT_CLAIM_ENTITY_ID and JWT_CLAIM_ENTITY_ROOTPATH removed;
  */
 package pro.mir0n.esquire.common;
 
@@ -47,7 +48,7 @@ public class EsqConstants {
 
     public static final String X_CORRELATION_ID = "X-Correlation-ID";
     public static final String X_REQUEST_ID = "X-Request-ID";
-    //xxx: set by the gateway only (inbound copies are stripped there), for a pure OAuth caller
+    //xxx: set by the gateway only (inbound copies are stripped there), from the caller's claims in keySmith
     public static final String X_ESQ_UID = "X-Esq-UID";
     public static final String X_ESQ_ROOT_PATH = "X-Esq-Root-Path";
     public static final String X_ESQ_ROLES = "X-Esq-Roles";
@@ -65,8 +66,6 @@ public class EsqConstants {
     public static final String PD_PROCESSING_TIME = "processingTime";
 
 
-    public static final String  JWT_CLAIM_ENTITY_ID = "esq_uid";
-    public static final String  JWT_CLAIM_ENTITY_ROOTPATH = "esq_rootpath";
     public static final String  JWT_CLAIM_PREFERRED_USERNAME = "preferred_username";
 
     public static final int  KIND_ADDRESS_POSTAL = 988;

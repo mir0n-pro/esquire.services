@@ -252,7 +252,6 @@ spring:
              #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         # biztree-route is NOT here: gateWard answers /esq, /esq-path, /esq-enode, /esq-tree and
         # /esq-sweep from the cache in this process (BizTreeCacheController). Routing them to a
         # backend would proxy the gate to itself.
@@ -287,7 +286,6 @@ spring:
             #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-route
           uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
@@ -318,7 +316,6 @@ spring:
             #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: pacman-save-route
           uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
@@ -349,7 +346,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-save-route
           uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
@@ -379,7 +375,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: keysmith-save-route
           uri: http://${KEYSMITH_HOST:mesnie}:${KEYSMITH_PORT:3003}
           predicates:
@@ -409,7 +404,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-new-route
           uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
@@ -439,7 +433,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: pacman-del-route
           uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
@@ -470,7 +463,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-del-route
           uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
@@ -500,7 +492,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: pacman-acct-route
           uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
@@ -531,7 +522,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-move-route
           uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
@@ -561,7 +551,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-tree-route
           uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
@@ -591,7 +580,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
 
 #  autoconfigure:
 #   exclude: org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration
@@ -608,20 +596,6 @@ spring:
       max-age: 3600
       exposed-headers: ["X-Request-ID", "X-Correlation-ID", "X-Response-Time", "Esq-Gw-Inner-Time", "Esq-Srv-Outer-Time", "Esq-Srv-Inner-Time"]
     oauth2:
-      client:
-        registration:
-          keycloak:
-            client-id: ${KEYCLOAK_CLIENT_ID:esq-angular}
-            authorization-grant-type: authorization_code
-            scope: openid
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-        provider:
-          keycloak:
-            enable-cors: true
-            authorization-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/auth
-            token-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/token
-            jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs
-            user-info-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/userinfo
       resourceserver:
         jwt:
           jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs

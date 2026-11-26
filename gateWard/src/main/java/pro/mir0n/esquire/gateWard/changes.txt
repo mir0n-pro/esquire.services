@@ -1,5 +1,10 @@
 Esquire gateWard Microservice
 
+11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
+ -- TokenRelay= out of every route; the spring.security.oauth2.client registration (keycloak,
+    KEYCLOAK_CLIENT_ID) out
+pom.xml
+
 11/23/2026 mir0n  v2.0.3 -- the roles header parse from common
 BizTreeCacheController
   - v2.0.3 -- the roles header parse is EsqRequestScope.rolesOf(); the private rolesOf(String) out

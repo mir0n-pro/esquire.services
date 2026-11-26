@@ -19,7 +19,7 @@
     <description>Esquire gateWard (the gate: gateway + the bizTree cache) Microservice</description>
 
     <dependencies>
-        <!-- The gate itself, as CODE: routes, filters, the reactive security chain and the token relay. -->
+        <!-- The gate itself, as CODE: routes, filters and the reactive security chain. -->
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
             <artifactId>esquire-gateway</artifactId>

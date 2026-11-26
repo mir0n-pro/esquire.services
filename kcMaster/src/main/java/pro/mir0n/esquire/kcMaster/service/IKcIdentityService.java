@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  kcMaster service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -11,12 +11,10 @@
  * 08/26/2026 mir0n  updateAccess drops the password and enabled parameters; forcePasswordChange becomes a
  *                   Boolean and removeTotp joins it, so each required action can be withdrawn as well as set
  * 11/23/2026 mir0n  v2.0.3 -- createUser() and updateUserAuthState() lose realmRoles; updateEntityPath() out
+ * 11/25/2026 mir0n  v2.0.3 -- createUser() and updateUserAuthState() lose attributes
  */
 
 package pro.mir0n.esquire.kcMaster.service;
-
-import java.util.List;
-import java.util.Map;
 
 public interface IKcIdentityService {
 
@@ -27,7 +25,6 @@ public interface IKcIdentityService {
             boolean enabled,
             boolean forcePasswordChange,
             boolean requireTotp,
-            Map<String, List<String>> attributes,
             String correlationId,
             String requestId
     );
@@ -39,7 +36,6 @@ public interface IKcIdentityService {
             Boolean forcePasswordChange,
             Boolean requireTotp,
             Boolean removeTotp,
-            Map<String, List<String>> attributes,
             String correlationId,
             String requestId
     );

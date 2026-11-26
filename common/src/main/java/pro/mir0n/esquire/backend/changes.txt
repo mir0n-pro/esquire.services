@@ -1,5 +1,7 @@
 Esquire Backend common microservice classes
 
+11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
+
 11/24/2026 mir0n  v2.0.3 -- dead code out
 identity.IIdentityGateway
   - v2.0.3 -- postMessage(RodEvent) out; the doc no longer names the moved-path command (op X) or the path

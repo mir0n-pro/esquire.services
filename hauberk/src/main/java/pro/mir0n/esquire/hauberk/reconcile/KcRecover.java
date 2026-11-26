@@ -18,6 +18,9 @@
  * 11/24/2026 mir0n  v2.0.3 -- the stale-path check and its repair removed (KeyCloak holds no esq_rootpath): run()
  *                   reports MISSING_IN_KC and ORPHAN_IN_KC only; EsqUser / KcUser carry no path; the connected-user
  *                   query reads esq_auth alone; the report counts in a loop
+ * 11/25/2026 mir0n  v2.0.3 -- the two stores are paired by login id (au_login_id = the KC username, in lower case), not
+ *                   by esq_uid; EMAIL_MISMATCH: the KC email against esq_auth.au_email; EsqUser / KcUser carry
+ *                   the email
  */
 package pro.mir0n.esquire.hauberk.reconcile;
 
@@ -41,26 +44,30 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * KC &lt;-&gt; Esquire data reconciliation.
  *
  * <p>Two decoupled stores drift: {@code esq2025} (SQL, the source of truth) and KeyCloak (the accounts of the
- * connected users, each one carrying its {@code esq_uid}, written only by kcMaster). A lost sync request or an
+ * connected users, written only by kcMaster, each one named by its login id). A lost sync request or an
  * out-of-band KC edit leaves the two disagreeing about who exists. This tool detects that drift and reports it.
+ * The two sides are paired by login id: {@code esq_auth.au_login_id} against the KC username.
  *
  * <p>It talks to BOTH stores DIRECTLY via their native APIs -- PG/JDBC for esq2025, the KC REST admin API for
  * KeyCloak -- and does NOT route through the Esquire services or the bus, so it works even when they are
  * down. That is also why it lives in hauberk (out of the services), not as a service endpoint.
  *
- * <p>Drift kinds, both REPORTED only:
+ * <p>Drift kinds, all REPORTED only:
  * <ul>
  *   <li>MISSING_IN_KC -- a connected Esquire user with no KC account (re-creating a KC user needs credential /
  *       activation state that is kcMaster's job -- not replicated here).</li>
- *   <li>ORPHAN_IN_KC -- a KC user carrying an {@code esq_uid} that is not a connected Esquire user (deletion is
+ *   <li>ORPHAN_IN_KC -- a KC user whose username is no connected Esquire user's login id (deletion is
  *       destructive).</li>
+ *   <li>EMAIL_MISMATCH -- a paired user whose KC email is not {@code esq_auth.au_email}.</li>
  * </ul>
+ * A login id change that never reached KC shows as both: the new login MISSING, the old one ORPHAN.
  */
 public final class KcRecover {
 
@@ -73,17 +80,18 @@ public final class KcRecover {
 
     private static final String MISSING_IN_KC = "MISSING_IN_KC";
     private static final String ORPHAN_IN_KC = "ORPHAN_IN_KC";
+    private static final String EMAIL_MISMATCH = "EMAIL_MISMATCH";
 
     private KcRecover() {}
 
-    /** The authoritative connected user: entity id (esq_uid) and login id. */
-    public record EsqUser(String esqUid, String loginId) {}
+    /** The authoritative connected user: entity id, login id and email. */
+    public record EsqUser(String entityId, String loginId, String email) {}
 
-    /** The mirror user in KC: the KC user id and username. */
-    public record KcUser(String id, String username) {}
+    /** The mirror user in KC: the KC user id, username and email. */
+    public record KcUser(String id, String username, String email) {}
 
     /** One detected drift row. */
-    public record Drift(String kind, String esqUid, String detail) {}
+    public record Drift(String kind, String loginId, String detail) {}
 
     /**
      * Run the reconciliation. Reads both stores, diffs, and prints a report. Returns the number of drifts found
@@ -94,22 +102,24 @@ public final class KcRecover {
         Map<String, EsqUser> esq = readEsquire();
         String token = adminToken();
         Map<String, KcUser> kc = readKc(token);
-        System.err.printf("[kc-reconcile] esquire connected users=%d, KC users (with esq_uid)=%d%n",
-                esq.size(), kc.size());
+        System.err.printf("[kc-reconcile] esquire connected users=%d, KC users=%d%n", esq.size(), kc.size());
 
         List<Drift> drifts = new ArrayList<>();
-        for (EsqUser u : esq.values()) {
-            if (!kc.containsKey(u.esqUid())) {
-                drifts.add(new Drift(MISSING_IN_KC, u.esqUid(),
-                        "connected user login=" + u.loginId() + " has no KC account"));
+        for (Map.Entry<String, EsqUser> e : esq.entrySet()) {
+            EsqUser esqUser = e.getValue();
+            KcUser kcUser = kc.get(e.getKey());
+            if (kcUser == null) {
+                drifts.add(new Drift(MISSING_IN_KC, esqUser.loginId(),
+                        "connected user (entity id " + esqUser.entityId() + ") has no KC account"));
+            } else if (!emailKey(esqUser.email()).equals(emailKey(kcUser.email()))) {
+                drifts.add(new Drift(EMAIL_MISMATCH, esqUser.loginId(),
+                        "esquire email=" + esqUser.email() + ", KC email=" + kcUser.email()));
             }
         }
-        // The KC map is keyed by esq_uid.
         for (Map.Entry<String, KcUser> e : kc.entrySet()) {
             if (!esq.containsKey(e.getKey())) {
-                drifts.add(new Drift(ORPHAN_IN_KC, e.getKey(),
-                        "KC user " + e.getValue().username() + " (esq_uid=" + e.getKey()
-                                + ") is not a connected Esquire user"));
+                drifts.add(new Drift(ORPHAN_IN_KC, e.getValue().username(),
+                        "KC user (id " + e.getValue().id() + ") is not a connected Esquire user"));
             }
         }
 
@@ -128,15 +138,16 @@ public final class KcRecover {
             throw new IllegalStateException("kc-reconcile: pg.url is not set in the hauberk config -- "
                     + "point it at esq2025 (jdbc:postgresql://host:port/db)");
         }
-        String sql = "SELECT a.au_usr_pk, a.au_login_id"
+        String sql = "SELECT a.au_usr_pk, a.au_login_id, a.au_email"
                 + " FROM esq_auth a"
                 + " WHERE a.au_connect_flg = 'Y'";
         try (Connection c = DriverManager.getConnection(url, EsqHauberkConfig.PG_USER, EsqHauberkConfig.PG_PASSWORD);
              PreparedStatement ps = c.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                String esqUid = String.valueOf(rs.getLong("au_usr_pk"));
-                ret.put(esqUid, new EsqUser(esqUid, rs.getString("au_login_id")));
+                String loginId = rs.getString("au_login_id");
+                ret.put(loginKey(loginId), new EsqUser(String.valueOf(rs.getLong("au_usr_pk")), loginId,
+                        rs.getString("au_email")));
             }
         }
         return ret;
@@ -171,7 +182,6 @@ public final class KcRecover {
         return ret;
     }
 
-    /** Read every KC user that carries an {@code esq_uid} attribute -> keyed by that esq_uid. */
     private static Map<String, KcUser> readKc(String token) throws Exception {
         Map<String, KcUser> ret = new LinkedHashMap<>();
         String uri = AuthConfig.BASE + "/admin/realms/" + AuthConfig.REALM
@@ -186,21 +196,25 @@ public final class KcRecover {
         if (resp.statusCode() != 200) {
             throw new IllegalStateException("KC list users returned " + resp.statusCode() + ": " + resp.body());
         }
+        //xxx: the admin user list leaves the service accounts out, so every user here is an interactive one
         for (JsonNode u : MAPPER.readTree(resp.body())) {
-            String esqUid = firstAttr(u.path("attributes"), "esq_uid");
-            //xxx: a user without esq_uid is not an Esquire-managed identity (e.g. the bootstrap admin)
-            if (esqUid != null) {
-                ret.put(esqUid, new KcUser(u.path("id").asText(), u.path("username").asText()));
-            }
+            String username = u.path("username").asText();
+            ret.put(loginKey(username), new KcUser(u.path("id").asText(), username,
+                    u.path("email").asText(null)));
         }
         return ret;
     }
 
-    private static String firstAttr(JsonNode attrs, String name) {
-        String ret = null;
-        JsonNode arr = attrs.path(name);
-        if (arr.isArray() && !arr.isEmpty()) {
-            ret = arr.get(0).asText();
+    //xxx: KC stores a username in lower case, so both sides are compared in lower case
+    private static String loginKey(String loginId) {
+        return loginId.toLowerCase(Locale.ROOT);
+    }
+
+    //xxx: KC stores an email in lower case too, and keeps no email as absent -- null and blank are the same
+    private static String emailKey(String email) {
+        String ret = "";
+        if (email != null) {
+            ret = email.trim().toLowerCase(Locale.ROOT);
         }
         return ret;
     }
@@ -213,18 +227,21 @@ public final class KcRecover {
         } else {
             int missing = 0;
             int orphan = 0;
+            int email = 0;
             for (Drift d : drifts) {
                 if (MISSING_IN_KC.equals(d.kind())) {
                     missing++;
-                } else {
+                } else if (ORPHAN_IN_KC.equals(d.kind())) {
                     orphan++;
+                } else {
+                    email++;
                 }
             }
-            System.err.printf("DRIFT: missing-in-KC=%d, orphan-in-KC=%d%n", missing, orphan);
+            System.err.printf("DRIFT: missing-in-KC=%d, orphan-in-KC=%d, email-mismatch=%d%n", missing, orphan, email);
             for (Drift d : drifts) {
-                System.err.println("  [" + d.kind() + "] esq_uid=" + d.esqUid() + " : " + d.detail());
+                System.err.println("  [" + d.kind() + "] login=" + d.loginId() + " : " + d.detail());
             }
-            System.err.println("\n(REPORTED only -- create / delete are not auto-applied.)");
+            System.err.println("\n(REPORTED only -- nothing is auto-applied.)");
         }
         System.err.println("===============================================================");
     }

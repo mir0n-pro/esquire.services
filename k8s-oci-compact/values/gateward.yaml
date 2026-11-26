@@ -28,7 +28,6 @@ keycloak:
   port: 8080
   path: /kc-auth                    # matches KC_HTTP_RELATIVE_PATH set on KC pod (v1.2.3)
   realm: esquire
-  clientId: esq-angular
 
 # Where the OTHER services are. There is no biztreeHost: the five tree routes are answered in this
 # process, so the route that pointed at bizTree is not in the table at all. Mesnie answers for both

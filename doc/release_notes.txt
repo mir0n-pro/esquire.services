@@ -1,6 +1,25 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2518  v2.0.3 -- code review: what the claims mode left behind
+    - the gateway no longer carries the token relay filter and a sign-in client setup it never used
+    - the KeyCloak load harness client loses its token encryption settings, which KeyCloak never applied
+    - KeyCloak users carry no Esquire id; kcMaster writes no extra data to a KeyCloak user
+    - the KeyCloak reconcile check pairs the users by login id and also checks the email
+    - five demo users in KeyCloak get the email the seed gives them
+    Components:   gateway,
+                  gateWard,
+                  common,
+                  kcMaster,
+                  keycloak,
+                  hauberk,
+                  compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci,
+                  k8s-oci-compact
+
 v2.0.3-2611.2501  v2.0.3 -- OAuth only: observability
     :Config:      the services board shows the gateway's claims cache hit rate and the keySmith claims query
                   time in place of the token relay panels; the KeyCloak line is out of the request time bands

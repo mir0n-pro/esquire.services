@@ -25,6 +25,7 @@
  *                   roles leave the realm roles as they are); the constructor written out in place of Lombok's
  * 11/23/2026 mir0n  v2.0.3 -- pure OAuth only: the pureOAuth constructor argument out; a create writes esq_uid
  *                   only; realmRoles() and the UPDATE_PATH command (handleUpdatePath()) out
+ * 11/25/2026 mir0n  v2.0.3 -- a create writes no attribute (esq_uid out); the attributes arguments out
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -35,10 +36,6 @@ import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Dispatches a deserialized URQ to the appropriate KC identity operation.
@@ -94,11 +91,7 @@ public class KcRequestHandler {
         }
     }
 
-    //xxx: the user's id is the one attribute KeyCloak holds -- the root path and the roles stay in Esq2025
     private void handleCreate(AuthSyncRequest req, String correlationId, String requestId) {
-        Map<String, List<String>> attributes = new java.util.HashMap<>();
-        attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ID, Collections.singletonList(req.getId()));
-
         kcIdentityService.createUser(
                 req.getLoginId(),
                 req.getEmail(),
@@ -106,7 +99,6 @@ public class KcRequestHandler {
                 true,         // enabled
                 true,         // forcePasswordChange -- must change on first login
                 false,        // requireTotp -- N on initial connect
-                attributes,
                 correlationId,
                 requestId
         );
@@ -117,7 +109,6 @@ public class KcRequestHandler {
         Boolean requireTotp = "g".equals(tfaMethod) ? Boolean.TRUE : null;
         Boolean removeTotp  = "n".equals(tfaMethod) ? Boolean.TRUE : null;
 
-        // NOTE: esq_uid (JWT_CLAIM_ENTITY_ID) is set at creation only -- never updated
         kcIdentityService.updateUserAuthState(
                 req.getLoginId(),
                 req.getNewLoginId(),
@@ -125,7 +116,6 @@ public class KcRequestHandler {
                 "Y".equals(req.getPwdChangeForced()),
                 requireTotp,
                 removeTotp,
-                null,   // no extra attributes on update
                 correlationId,
                 requestId
         );

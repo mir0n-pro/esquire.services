@@ -29,8 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
  * Wiring:
  *   - SecurityConfig has .anyExchange().permitAll() as the fallback, so GET /
  *     is unauthenticated by default. No SecurityConfig change required.
- *   - The CredentialBound + PhantomToken filters only act when an Authorization
- *     header is present, so a no-auth visit to / sails through untouched.
+ *   - The bearer-token check only acts when an Authorization header is
+ *     present, so a no-auth visit to / passes through untouched.
  *
  * Out of scope: /index.html, /favicon.ico, any other root-asset path. They
  * remain 404 -- callers don't need those at an API host.

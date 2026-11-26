@@ -22,7 +22,7 @@ import pro.mir0n.esquire.backend.o11y.IMeterOwner;
 /**
  * Whether a meter belongs to the gateway or to the tree cache, in the one process that runs both.
  *
- * The gate's work is its own timing bands, its token relay, its route meters and its breakers. The cache's
+ * The gate's work is its own timing bands, its claims cache, its route meters and its breakers. The cache's
  * work is its business meters, the service bands of a locally answered tree route, the repository call that
  * loads it, and the entity bus it listens on. What the two SHARE is the process's: the JVM, the connection
  * pool, and the Netty server, which carries proxied and locally answered traffic alike.

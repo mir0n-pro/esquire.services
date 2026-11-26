@@ -18,8 +18,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 
 /**
- * The gateway, as a set of beans: the route predicate factory, the filters, the reactive security chain and
- * the token relay.
+ * The gateway, as a set of beans: the route predicate factory, the filters and the reactive security chain.
  * <p>
  * Everything that says WHICH packages make up the gateway lives here and nowhere else, so a process that
  * wants the gate inside it imports this one class instead of copying the list.

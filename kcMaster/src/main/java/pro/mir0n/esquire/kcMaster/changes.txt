@@ -1,5 +1,14 @@
 Esquire kcMaster Microservice
 
+11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
+messaging.KcRequestHandler
+  - v2.0.3 -- a create writes no attribute (esq_uid out); the attributes arguments out
+service.IKcIdentityService
+  - v2.0.3 -- createUser() and updateUserAuthState() lose attributes
+service.impl.KcIdentityService
+  - v2.0.3 -- createUser() and updateUserAuthState() lose attributes: the attribute set on a create and the
+    merge on an update out
+
 11/24/2026 mir0n  v2.0.3 -- dead code out
 identity.KcIdentityGateway
   - v2.0.3 -- the empty postMessage() out

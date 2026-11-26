@@ -26,7 +26,7 @@ import java.util.concurrent.Callable;
  *
  * <p>A standalone data-recover utility, OUT of the Esquire services: it reads the authoritative connected-user
  * state from esq2025 over PG/JDBC and the mirror from KeyCloak over the REST admin API, and reports the drift
- * (missing-in-KC, orphan-in-KC). Because it uses the native APIs directly (not the services or the bus), it
+ * (missing-in-KC, orphan-in-KC, email-mismatch). Because it uses the native APIs directly (not the services or the bus), it
  * works even when they are down.
  *
  * <p>Config: PG connection from {@code pg.url} / {@code pg.user} / {@code pg.password}, KC from {@code kc.base} /
@@ -34,8 +34,9 @@ import java.util.concurrent.Callable;
  * {@code --config} overlay). Exit code: 0 = in sync, 1 = drift found.
  */
 @Command(name = "kc-reconcile",
-        description = "Reconcile KeyCloak against Esquire (esq2025): report a connected user with no KC account "
-                + "and a KC account with no connected user. Talks PG(JDBC) + KC(REST) directly, out of the services.")
+        description = "Reconcile KeyCloak against Esquire (esq2025): report a connected user with no KC account, "
+                + "a KC account with no connected user, and a KC email that differs from Esquire's. "
+                + "Talks PG(JDBC) + KC(REST) directly, out of the services.")
 public class KcReconcileCommand implements Callable<Integer> {
 
     @Option(names = "--config",

@@ -42,8 +42,8 @@ public class KcConnectionSettings {
     }
 
     /**
-     * Reads one connection out of the environment. The prefix names WHICH connection -- {@code keycloak.admin}
-     * or {@code keycloak.exchange} -- and the six keys under it are the same either way.
+     * Reads one connection out of the environment: the six keys under the prefix (kcMaster's is
+     * {@code keycloak.admin}).
      */
     public static KcConnectionSettings from(Environment env, String prefix) {
         String baseUrl      = env.getProperty(prefix + ".base-url", "");

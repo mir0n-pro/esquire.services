@@ -32,6 +32,8 @@
  * 11/23/2026 mir0n  v2.0.3 -- pure OAuth only: the path park field and the race-8c flush (applyBufferedPath())
  *                   out of createUser(); the realm role sync (updateRealmRoles(), assignRealmRoles()) and
  *                   updateEntityPath() out
+ * 11/25/2026 mir0n  v2.0.3 -- createUser() and updateUserAuthState() lose attributes: the attribute set on a
+ *                   create and the merge on an update out
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -53,9 +55,7 @@ import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -74,7 +74,6 @@ public class KcIdentityService implements IKcIdentityService {
             boolean enabled,
             boolean forcePasswordChange,
             boolean requireTotp,
-            Map<String, List<String>> attributes,
             String correlationId,
             String requestId
     ) {
@@ -100,10 +99,6 @@ public class KcIdentityService implements IKcIdentityService {
                     : new ArrayList<>();
             requiredActions.add("CONFIGURE_TOTP");
             user.setRequiredActions(requiredActions);
-        }
-
-        if (attributes != null && !attributes.isEmpty()) {
-            user.setAttributes(attributes);
         }
 
         String kcId;
@@ -133,7 +128,6 @@ public class KcIdentityService implements IKcIdentityService {
             Boolean forcePasswordChange,
             Boolean requireTotp,
             Boolean removeTotp,
-            Map<String, List<String>> attributes,
             String correlationId,
             String requestId
     ) {
@@ -151,7 +145,7 @@ public class KcIdentityService implements IKcIdentityService {
         String kcId = users.get(0).getId();
         UserResource userResource = usersResource.get(kcId);
         // Full representation required -- search result carries minimal data (attributes = null).
-        // Using toRepresentation() preserves existing KC attributes (esq_uid, etc.)
+        // Using toRepresentation() preserves the existing KC attributes
         UserRepresentation user = userResource.toRepresentation();
 
         boolean changed = false;
@@ -182,17 +176,6 @@ public class KcIdentityService implements IKcIdentityService {
 
         if (newLoginId != null && !newLoginId.equals(loginId)) {
             user.setUsername(newLoginId);
-            changed = true;
-        }
-
-        // Merge attributes -- never replace whole map, preserves esq_uid, etc.
-        if (attributes != null) {
-            Map<String, List<String>> merged = new HashMap<>();
-            if (user.getAttributes() != null) {
-                merged.putAll(user.getAttributes());
-            }
-            merged.putAll(attributes);
-            user.setAttributes(merged);
             changed = true;
         }
 

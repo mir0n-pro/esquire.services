@@ -4,16 +4,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
 import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
-
-import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -81,28 +76,9 @@ class KcRequestHandlerTest {
                 eq(true),
                 eq(true),
                 eq(false),
-                any(),
                 eq("cid1"),
                 eq("rid1")
         );
-    }
-
-    @Test
-    @DisplayName("CREATE: attributes carry esq_uid only -- the root path stays in Esq2025")
-    void create_attributesCarryEsqUidOnly() {
-        handler.handle(BusConstants.EVENT_CREATE, buildCreateReq(), "cid1", "rid1");
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, List<String>>> attrCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(kcIdentityService).createUser(
-                anyString(), anyString(), anyString(),
-                eq(true), eq(true), eq(false),
-                attrCaptor.capture(), anyString(), anyString()
-        );
-
-        Map<String, List<String>> attrs = attrCaptor.getValue();
-        assertThat(attrs).containsOnlyKeys(EsqConstants.JWT_CLAIM_ENTITY_ID);
-        assertThat(attrs.get(EsqConstants.JWT_CLAIM_ENTITY_ID)).containsExactly("uid-001");
     }
 
     // --- UPDATE dispatch ---
@@ -114,7 +90,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 eq("alice@example.com"), any(), any(), any(), any(),
-                any(), any(), eq("cid1"), eq("rid1"));
+                any(), eq("cid1"), eq("rid1"));
     }
 
     @Test
@@ -124,7 +100,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), eq(Boolean.TRUE),
-                isNull(), any(), anyString(), anyString());
+                isNull(), anyString(), anyString());
     }
 
     @Test
@@ -134,7 +110,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), isNull(),
-                eq(Boolean.TRUE), any(), anyString(), anyString());
+                eq(Boolean.TRUE), anyString(), anyString());
     }
 
     @Test
@@ -144,7 +120,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), isNull(),
-                isNull(), any(), anyString(), anyString());
+                isNull(), anyString(), anyString());
     }
 
     @Test
@@ -154,7 +130,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), eq(Boolean.TRUE), any(),
-                any(), any(), anyString(), anyString());
+                any(), anyString(), anyString());
     }
 
     @Test
@@ -164,7 +140,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), eq(false), any(),
-                any(), any(), anyString(), anyString());
+                any(), anyString(), anyString());
     }
 
     // --- DELETE dispatch ---

@@ -50,8 +50,8 @@ import pro.mir0n.messaging.BusConstants;
 /**
  * gateWard -- the gate and the ward behind it: the gateway with the bizTree CACHE in the same process.
  * <p>
- * The gate comes in as its own {@code @Configuration}, so its routes, filters, reactive security chain and
- * token relay are exactly the ones the gateway service runs. bizTree comes in as the CACHE only --
+ * The gate comes in as its own {@code @Configuration}, so its routes, filters and reactive security chain
+ * are exactly the ones the gateway service runs. bizTree comes in as the CACHE only --
  * {@link BizTreeCacheConfig} names the director, the monads, the H2 cache and its loader, the JPA read side
  * and the entity-bus consumer. Its controller and its servlet security stay behind, and with them
  * {@code spring-boot-starter-web}: a servlet starter on this classpath would make Boot choose a servlet
@@ -61,9 +61,9 @@ import pro.mir0n.messaging.BusConstants;
  * proxying them, and the scheduler those reads run on.
  * <p>
  * <b>The state it holds changed kind.</b> The gate already carried state: the object kinds, loaded at start
- * from a file in the image, and the per-instance token relay cache. Both look after themselves -- the kinds
- * are there before anything can ask, and a cold relay cache fills itself from the next request at the cost of
- * one round trip. The tree cache does neither: it is read out of the database at start, kept in step by the
+ * from a file in the image, and the per-instance claims cache. Both look after themselves -- the kinds
+ * are there before anything can ask, and a cold claims cache fills itself from the next request at the cost
+ * of one round trip to keySmith. The tree cache does neither: it is read out of the database at start, kept in step by the
  * entity topic, and has no miss path, so a cold copy answers with an empty tree -- wrong rather than slow.
  * That is what the cache readiness gate is for: until the cache has loaded, this process reports itself not
  * ready and takes no traffic.

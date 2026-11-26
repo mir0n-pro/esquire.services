@@ -475,13 +475,8 @@
       "username": "client",
       "firstName": "Cli",
       "lastName": "Ent",
-      "email": "mir0n.the.programmer10@gmail.com",
+      "email": "mir0n.the.programmer.10@gmail.com",
       "emailVerified": true,
-      "attributes": {
-        "esq_uid": [
-          "10"
-        ]
-      },
       "enabled": true,
       "createdTimestamp": 1767843970020,
       "totp": false,
@@ -510,11 +505,6 @@
       "username": "departmentadmin",
       "email": "mir0n.the.programmer.9@gmail.com",
       "emailVerified": true,
-      "attributes": {
-        "esq_uid": [
-          "9"
-        ]
-      },
       "enabled": true,
       "createdTimestamp": 1773695766155,
       "totp": false,
@@ -540,13 +530,8 @@
       "username": "mainadmin",
       "firstName": "Super",
       "lastName": "Vizor",
-      "email": "mir0n.the.programmer5@gmail.com",
+      "email": "mir0n.the.programmer.5@gmail.com",
       "emailVerified": true,
-      "attributes": {
-        "esq_uid": [
-          "5"
-        ]
-      },
       "enabled": true,
       "createdTimestamp": 1767770755789,
       "totp": false,
@@ -574,13 +559,8 @@
       "username": "merchant",
       "firstName": "Mer",
       "lastName": "Chant",
-      "email": "mir0n.the.programmer8@gmail.com",
+      "email": "mir0n.the.programmer.8@gmail.com",
       "emailVerified": true,
-      "attributes": {
-        "esq_uid": [
-          "8"
-        ]
-      },
       "enabled": true,
       "createdTimestamp": 1767843323265,
       "totp": false,
@@ -609,13 +589,8 @@
       "username": "officeadmin",
       "firstName": "Office",
       "lastName": "Manager",
-      "email": "mir0n.the.programmer7@gmail.com",
+      "email": "mir0n.the.programmer.7@gmail.com",
       "emailVerified": true,
-      "attributes": {
-        "esq_uid": [
-          "7"
-        ]
-      },
       "enabled": true,
       "createdTimestamp": 1767842917076,
       "totp": false,
@@ -670,11 +645,6 @@
       "lastName": "Driver",
       "email": "esq-hauberk@mir0n.pro",
       "emailVerified": false,
-      "attributes": {
-        "esq_uid": [
-          "15"
-        ]
-      },
       "enabled": true,
       "createdTimestamp": 1778400000000,
       "totp": false,
@@ -693,13 +663,8 @@
       "username": "support",
       "firstName": "Office",
       "lastName": "Support",
-      "email": "mir0n.the.programmer6@gmail.com",
+      "email": "mir0n.the.programmer.6@gmail.com",
       "emailVerified": true,
-      "attributes": {
-        "esq_uid": [
-          "6"
-        ]
-      },
       "enabled": true,
       "createdTimestamp": 1767843071595,
       "totp": false,
@@ -730,11 +695,6 @@
       "lastName": "Administrator",
       "email": "mir0n.the.programmer4@gmail.com",
       "emailVerified": true,
-      "attributes": {
-        "esq_uid": [
-          "4"
-        ]
-      },
       "enabled": true,
       "createdTimestamp": 1770054664286,
       "totp": false,
@@ -970,7 +930,7 @@
       "id": "31098569-21e7-4a6b-8208-c50dd70a13f4",
       "clientId": "esq-angular",
       "name": "Esquire Angular Client",
-      "description": "Esquire Angular Client (BFF-fronted; confidential client; JWE-encrypted access tokens)",
+      "description": "Esquire Angular Client (BFF-fronted; confidential client)",
       "rootUrl": "",
       "adminUrl": "",
       "baseUrl": "",
@@ -1194,11 +1154,7 @@
         "tls.client.certificate.bound.access.tokens": "false",
         "acr.loa.map": "{}",
         "display.on.consent.screen": "false",
-        "token.response.type.bearer.lower-case": "false",
-        "access.token.encrypted.response.alg": "RSA-OAEP",
-        "access.token.encrypted.response.enc": "A256GCM",
-        "use.jwks.url": "true",
-        "jwks.url": "http://gateway:7070/jwe-jwks"
+        "token.response.type.bearer.lower-case": "false"
       },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
@@ -2211,7 +2167,7 @@
         "subComponents": {},
         "config": {
           "kc.user.profile.config": [
-            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"esq_uid\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
           ]
         }
       }
