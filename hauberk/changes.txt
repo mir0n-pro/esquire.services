@@ -1,5 +1,60 @@
 hauberk changes
 
+11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
+reconcile.KcRecover
+  - the two stores are paired by login id (au_login_id = the KC username, in lower case), not by esq_uid;
+    EMAIL_MISMATCH: the KC email against esq_auth.au_email; EsqUser / KcUser carry the email
+
+11/24/2026 mir0n  v2.0.3 -- one kind of sign-in: the relay and lab clients and race-8c out
+chain.ConnectUser
+  - javadoc: kcMaster assigns no realm roles; the roles stay on the access profile
+chain.KcAdminAuth
+  - javadoc: the master-realm admin token serves the orphan cleanup (the race-8c verify is removed)
+chain.ReadTreeRoot
+  - the root-path note names the access profile, not the token
+cli.KcReconcileCommand
+  - --repair removed; the check reports missing-in-KC and orphan-in-KC only
+config.EsqHauberkConfig
+  - javadoc: the root path is the access profile's, not a token claim
+reconcile.KcRecover
+  - the stale-path check and its repair removed (KeyCloak holds no esq_rootpath): run() reports MISSING_IN_KC
+    and ORPHAN_IN_KC only; EsqUser / KcUser carry no path; the connected-user query reads esq_auth alone; the
+    report counts in a loop
+simulations.KcCleanupSimulation
+  - javadoc: an orphan comes from a lost sync request, not from race-8c
+simulations.RaceMoveCreateSimulation
+  - javadoc: the wrong path reaches biztree only; KeyCloak holds no path
+simulations.RaceMoveCreateKcSimulation  (removed)
+  - the race-8c verify: KeyCloak holds no esq_rootpath to diff against
+simulations.RaceMoveCreateKcSingleShotSimulation  (removed)
+  - the single-shot race-8c repro: it needed the removed keySmith hold
+hauberk-P.properties  (removed)
+  - the pure OAuth overlay for docker (esq-hauberk-P)
+hauberk-k8s-P.properties  (removed)
+  - the pure OAuth overlay for local k8s classic (esq-hauberk-P)
+hauberk-k8s-compact-P.properties  (removed)
+  - the pure OAuth overlay for local k8s compact (esq-hauberk-P)
+hauberk-S.properties  (removed)
+  - the Vanilla Token Relay overlay (esq-hauberk-S)
+hauberk-M.properties  (removed)
+  - the Phantom Token Relay overlay (esq-hauberk-M)
+hauberk.properties
+  - the tokenRelay.type key and its plain / vanilla / phantom notes out; the comments name no race-8c, no
+    hauberk-S and no esq_rootpath
+hauberk-compact.properties
+  - the tokenRelay.type key and its plain / vanilla / phantom notes out; the comments name no race-8c, no
+    hauberk-S and no esq_rootpath
+hauberk-k8s.properties
+  - the --S usage line out
+hauberk-k8s-compact.properties
+  - the --S usage line out
+hauberk-oke.properties
+  - the --S usage line out
+perf-matrix.ps1
+  - the docker-OFF-PURE, k8s-x2-OFF-PURE and k8sc-x2-OFF-PURE cells out, with the -P overlay choice
+README.md
+  - one certified client (esq-hauberk); kc-reconcile reports missing / orphan accounts; the --S line out
+
 11/22/2026 mir0n  v2.0.2 -- the load as the pure OAuth client
 hauberk-P.properties  (new)
   - the pure OAuth overlay for docker: kc.client.id esq-hauberk-P and its dev secret

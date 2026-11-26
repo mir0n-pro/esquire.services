@@ -21,7 +21,6 @@
 #   var     OKE_CLUSTER_OCID      the OKE cluster OCID
 #   secret  MIR0N_PWD             postgres + Keycloak admin password
 #   secret  BFF_KC_SECRET         (optional) esq-angular BFF client secret
-#   secret  GW_EXCHANGE_SECRET    (optional) gateWard phantom-relay exchange secret
 #   secret  BFF_SESSION_SECRET    (optional) BFF session-cookie HMAC secret
 #   secret  KCMASTER_ADMIN_SECRET REQUIRED. esq-kcMaster KC admin service-account client secret.
 #                                 It is the one published client holding realm-admin, so the deploy
@@ -253,7 +252,6 @@ jobs:
           DEPLOY_INFRA: ${{ github.event.inputs.deploy_infra || 'false' }}
           MIR0N_PWD: ${{ secrets.MIR0N_PWD }}
           BFF_KC_SECRET: ${{ secrets.BFF_KC_SECRET }}
-          GW_EXCHANGE_SECRET: ${{ secrets.GW_EXCHANGE_SECRET }}
           BFF_SESSION_SECRET: ${{ secrets.BFF_SESSION_SECRET }}
           KCMASTER_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: bash services2/.github/scripts/deploy-oke.sh
@@ -286,18 +284,10 @@ jobs:
         working-directory: explorer2/e2e-test
         env:
           BASE_URL: https://esquire.mir0n.pro
-          # 20-token-relay talks to the gate + KeyCloak DIRECTLY (not through the BFF), so it needs the
+          # 24-oauth-token talks to the gate + KeyCloak DIRECTLY (not through the BFF), so it needs the
           # public OKE gate host and KC path; without them it falls back to localhost and ECONNREFUSEs.
           GATEWAY_URL: https://api.esquire.mir0n.pro
           KC_URL: https://esquire.mir0n.pro/kc-auth
-          # Token Relay is DISABLED on the internet-facing OKE gate (empty allowlists -- see
-          # k8s-oci-compact/values/gateward.yaml, 2026-07-20). This flag makes 20-token-relay's two specs
-          # skip on OKE only; docker / local k8s leave it unset and keep running them.
-          RELAY_DISABLED: "true"
-          # OKE runs the claims mode only: no pure OAuth client in its realm and none listed at its gate.
-          # This flag makes 24-pure-oauth-token skip on OKE; 25-pure-oauth-eviction skips there already
-          # (PURE_OAUTH unset). docker / local k8s leave it unset and keep running spec 24.
-          PURE_OAUTH_DISABLED: "true"
           # 21-credential-state-sync reads the user's required actions through KeyCloak's ADMIN api -- that is
           # where a forced password change and a TOTP request actually land. It authenticates as esq-kcMaster,
           # the same service account kcMaster itself uses. A secret that is not configured arrives here as an

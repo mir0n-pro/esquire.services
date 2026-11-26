@@ -87,45 +87,12 @@ esquire:
       # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
       # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
       business-enabled: ${ESQ_METRICS_BUSINESS:true}
-# Pure OAuth (lab): the claims stay in Esq2025 -- no root path and no roles go to KeyCloak, and a change
-# removes the user from the gateway's claims cache over the claims bus. Off = the claims mode, as before.
-esq:
-  pure-oauth: ${ESQ_PURE_OAUTH:false}
 herald:
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}
       slot-id: ${AUDIT_SLOT_ID:audit}
       role: SERVER   # the service is the audit SERVER: it broadcasts its log events (in-process keep applies them)
-  kc-bus:
-    messaging-bus:
-      bus-id: ${KC_BUS_ID:esquire.kc}
-      slot-id: ${KC_SLOT_ID:kc}
-      role: CLIENT
-      x-rod:
-        # EVERY KC sync must be processed; how long it takes does not matter. So a full feed must HOLD the
-        # producer, never discard the event: 0 = wait forever (the default, 10000ms, DROPS the item once the
-        # feed has been full that long -- for an identity sync that is silent, unrecoverable loss). Matches the
-        # keySmith KC leg and enyMan's own entity leg; this is what makes the send-retry below back-pressure
-        # rather than drop.
-        feed-await-ms: ${ENYMAN_KC_FEED_AWAIT_MS:0}
-        receiver-pool:
-          size: ${ENYMAN_KC_RESPONSE_POOL_SIZE:2}
-          mode: ${KC_POOL_MODE:platform}   # platform | virtual | virtual-per-task
-        concurrency: ${ENYMAN_KC_RESPONSE_CONCURRENCY:1}
-        publisher-pool:
-          size: ${ENYMAN_KC_PUBLISHER_POOL_SIZE:0}
-          mode: ${ENYMAN_KC_PUBLISHER_POOL_MODE:platform}
-        # producer send-retry on the KC R&R bus (the CLIENT request leg); opt-in, default OFF here, ON in docker +
-        # the local-k8s overlay -- OKE stays on this pre-HA default. Block mode (max-attempts 0): hold + retry over
-        # the backoff ladder until the broker recovers so the KC sync request still goes through. This covers only a
-        # send that THROWS (broker unreachable at send time); the KC sync is idempotent, so a re-sent request is
-        # safe. It does NOT cover a request that lands on the broker and is then lost (the kc bus is
-        # persistent:false): reply tracking / a caller reply-timeout was an idea we deferred (R&R reliability,
-        # backlog #14), not built here -- such a loss is not detected or reconciled today.
-        send-retry: ${KC_SEND_RETRY:false}
-        send-retry-backoff-sec: ${KC_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
-        send-retry-max-attempts: ${KC_SEND_RETRY_MAX_ATTEMPTS:0}
   # v1.2.10 Goal-4: enyMan both PUBLISHES entity broadcasts and LISTENS for its peers' (CLIENT role -> the rod
   # runs a receive leg; because the transport supports both legs on one connection it ALSO opens a producer leg
   # on that same connection, so enyMan publishes through it too). The shared connection lets the broker's noLocal
@@ -157,7 +124,7 @@ herald:
         send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
         send-retry-backoff-sec: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
-  # Pure OAuth (lab): the eviction topic to the gateway's claims cache; built only while esq.pure-oauth is on.
+  # OAuth: the eviction topic -- after a move, every gateway drops the moved users' cached claims.
   claims-bus:
     messaging-bus:
       bus-id: ${CLAIMS_BUS_ID:esquire.claims}

@@ -32,7 +32,7 @@ A haubergeon is mid-thigh instead of past-the-knee and has short sleeves.
 
 Alongside *haubergeon* you'll see *hauberk* used in code, config, and
 system properties (`hauberk.cmd`, `pro.mir0n.esquire.hauberk`,
-`esq-hauberk-S`, `hauberk.metrics`) -- same thing, shorter name.
+`esq-hauberk`, `hauberk.metrics`) -- same thing, shorter name.
 
 ## Gatling vocabulary
 
@@ -102,37 +102,28 @@ hauberk.cmd summary output/EntitySmokeSimulation-.../entity-smoke.csv
 hauberk.cmd diff   output/<run-a>/<scn>.csv output/<run-b>/<scn>.csv
 ```
 
-## Identity model -- three certified clients (one per non-browser auth pattern)
+## Identity model -- one client, one Test Driver
 
-The hauberk operates as one of three KC clients, each backed by a seeded
-admin USR in `db.seed` and each calibrated for a different gateway auth
-pattern:
+The hauberk signs in as one KeyCloak client, `esq-hauberk`, through the client credentials grant. The token it
+gets names the caller by login id (`preferred_username` = `esq-hauberk@mir0n.pro`) and carries no Esquire claims.
+The gateway looks the claims up in keySmith by that login id, as it does for every caller, so the hauberk takes
+the same path as the browser behind the BFF.
 
-| KC client | Mode | Backed by USR | esq_rootpath | Used when |
+| KC client | Token | Login id -> Esquire user | Root path | Used for |
 |---|---|---|---|---|
-| `esq-hauberk`   | Plain JWT (gateway local-validates JWS) | Test Driver,   uid=15 | `1.14.` | Default; service-to-service style load |
-| `esq-hauberk-S` | Vanilla Token Relay (client sends HTTP Basic; gateway brokers JWT via `client_credentials` and caches per `client_id`) | Test Driver S, uid=16 | `1.14.` | Claim-hiding without a BFF tier; A/B against Plain JWT |
-| `esq-hauberk-M` | Phantom Token Relay (client sends stripped Bearer; gateway exchanges via RFC 8693 token-exchange and caches per `jti`) | Test Driver M, uid=17 | `1.14.` | Token-portability + claim-hiding |
+| `esq-hauberk` | client credentials; login id only | `esq-hauberk@mir0n.pro` -> Test Driver, uid=15 | `1.14.` | every simulation |
 
-All three Test Drivers are kind=32 admins under **Test House** (org pk=14,
-seeded at `db.seed/postgres/fill/initial-entities.sql`). Their
-`esq_rootpath="1.14."` caps their visibility -- they can see and modify
-the Test House subtree, **nothing else** in the entity tree. The whole
-hauberk playground roots itself under Test House (config knob
-`playground.parent.id=14`).
+The Test Driver is a kind=32 admin under **Test House** (org pk=14, seeded at
+`db.seed/postgres/fill/initial-entities.sql`). Its root path `1.14.` caps its visibility -- it can see and
+modify the Test House subtree, **nothing else** in the entity tree. The whole hauberk playground roots itself
+under Test House (config knob `playground.parent.id=14`).
 
-Reserved future slot: `esq-hauberk-L` -- for an additional protocol
-variant (JWE-when-supported, mTLS-bound tokens, DPoP, etc.).
-
-The harness presents the right edge credential per run automatically:
-`tokenRelay.type=vanilla` sends **HTTP Basic** (`client_id:client_secret`) so
-the gateway brokers the JWT; `plain` and `phantom` send a **Bearer** KC token.
-The branch is `HauberkConfig.isBasicAuth()`, read by both the Simulations and
-the health pre-check -- the harness never hardcodes which client it is.
+The harness sends the token as a **Bearer**. Armoury's generic harness also has a `tokenRelay.type` setting for
+other gateways; Esquire's hauberk leaves it at the default.
 
 ## Simulation catalog
 
-The hauberk ships 22 Simulations. Discover at runtime via
+The hauberk ships 20 Simulations. Discover at runtime via
 `hauberk.cmd list`; each is a Java class under
 `src/main/java/.../hauberk/simulations/`.
 
@@ -168,14 +159,12 @@ The hauberk ships 22 Simulations. Discover at runtime via
 
 ### Race-condition repros
 
-Self-validating Simulations that surface known races in the entity-broadcast + bizTree-cache + KC-path pipeline (PASS only when the fix holds):
+Self-validating Simulations that surface known races in the entity-broadcast + bizTree-cache pipeline (PASS only when the fix holds):
 
 | Simulation | Race |
 |---|---|
 | `RaceCacheLoadSimulation` | Race 8a: cache-load race; create-load + manual bizTree restart mid-flight |
 | `RaceMoveCreateSimulation` | Race 8b: move + concurrent create; DB `ep_path` vs bizTree path divergence |
-| `RaceMoveCreateKcSimulation` | Race 8c: move + concurrent create; DB `ep_path` vs KC `esq_rootpath` divergence |
-| `RaceMoveCreateKcSingleShotSimulation` | Race 8c single-shot: one disabled user + one move during the keySmith hold; deterministic, no heal |
 
 ### Message-loss / night-watch repros
 
@@ -203,14 +192,11 @@ hardcoded Java values.
 ### Property files
 
 The utility is **client-agnostic** -- it never knows which KC client it
-runs as. The loaded config tells it: `kc.client.id`, `kc.client.secret`,
-and `tokenRelay.type` (`plain` | `vanilla` | `phantom` -- names the
-gateway-side Token Relay pattern this run targets). One config file
-per run.
+runs as. The loaded config tells it: `kc.client.id` and `kc.client.secret`.
+One config file per run.
 
-`hauberk.properties` -- canonical default (compose endpoints,
-`tokenRelay.type=plain`, default client, prep / move / super shape
-knobs).
+`hauberk.properties` -- canonical default (compose endpoints, the
+`esq-hauberk` client, prep / move / super shape knobs).
 
 `hauberk-k8s.properties` -- overlay for local k8s (Docker Desktop)
 endpoints. Inherits everything else from `hauberk.properties`.
@@ -218,10 +204,10 @@ endpoints. Inherits everything else from `hauberk.properties`.
 `hauberk-oke.properties` -- overlay for OKE endpoints. Inherits
 everything else from `hauberk.properties`.
 
-To run against a different Token Relay pattern, edit the loaded
-properties file (or supply a one-off `--config <file>.properties`) with
-the `tokenRelay.type` + matching `kc.client.id` + `kc.client.secret`
-you want. The utility has no per-client flags.
+`hauberk-compact.properties` and `hauberk-k8s-compact.properties` -- the
+same overlays for the compact shape, on docker and on local k8s.
+
+The utility has no per-client flags.
 
 ### CLI flags (picocli on HauberkCli.run)
 
@@ -349,7 +335,7 @@ client ─────────────► gw_outer ─────► gw
 | Band | Formula | What lives in that layer |
 |---|---|---|
 | `net` | `c - gO` | Wire transport client <-> gateway (HTTP + TCP) |
-| `gw_self` | `gO - gI` | Gateway own work: Spring Security (JWT decode, Vanilla Token Relay broker call, Phantom Token Relay exchange, role check), routing decisions, response assembly. **Where the Token Relay KC roundtrip cost lands on cache MISS.** |
+| `gw_self` | `gO - gI` | Gateway own work: Spring Security (JWT decode and signature check, the claims lookup in keySmith on a cache miss, role check), routing decisions, response assembly. **Where the claims lookup cost lands on a cache MISS.** |
 | `in_cluster` | `gI - sO` | Gateway <-> service network + HTTP serialization (across docker containers, k8s pod-to-pod) |
 | `srv_self` | `sO - sI` | Service application logic -- Spring stack + controller + business logic minus DB |
 | `srv_inner` | `sI` | Inner umbrella -- today DB; future `-DB-` / `-JMS-` / `-Cache-` decompositions |
@@ -400,11 +386,6 @@ hauberk.cmd run entity-smoke --metrics --config hauberk-k8s.properties
 hauberk.cmd diff output/<run-a>/<scn>.csv output/<run-b>/<scn>.csv
 ```
 
-To run the same sim against a different Token Relay pattern (Vanilla
-via esq-hauberk-S, Phantom via esq-hauberk-M, ...): create a
-properties file with the matching `tokenRelay.type` +
-`kc.client.id` + `kc.client.secret` (and any other deltas) and pass
-it via `--config`.
 
 ### Load comparison -- sustained throughput / latency under load
 
@@ -456,12 +437,12 @@ The picocli CLI lives in `cli/` (`HauberkCli`, `RunCommand`,
   `Esq-Gw-Inner-Time` / `Esq-Srv-Outer-Time` / `Esq-Srv-Inner-Time`)
   that PerformanceMatrix consumes. Defines what each header captures
   at the wire + which filter emits it.
-- [Esquire.Auth.TokenPatterns.md](Esquire.Auth.TokenPatterns.md) -- the four
-  certified auth patterns (BFF / Plain JWT / Vanilla Token Relay / Phantom Token Relay);
+- [Esquire.Auth.TokenPatterns.md](Esquire.Auth.TokenPatterns.md) -- the token
+  patterns weighed for the edge (BFF / JWT with claims / Vanilla Token Relay / Phantom Token Relay / pure OAuth),
+  and why the token Esquire uses carries the login id only;
   diagrams + decision matrix; "Patterns we deliberately don't use"
   section explains why Opaque + Introspection (RFC 7662) and
-  Lightweight Access Tokens + Userinfo were not chosen. The hauberk's
-  three non-browser clients each correspond to one of Patterns 2/3/4.
+  Lightweight Access Tokens + Userinfo were not chosen.
 - [Esquire.TestingStack.md](Esquire.TestingStack.md) -- the full testing-stack
   overview (every tier + framework); positions Gatling / Haubergeon as the
   Esquire standard for stress / load / race-repro, of which this harness's

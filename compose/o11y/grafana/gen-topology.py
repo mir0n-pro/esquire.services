@@ -22,7 +22,7 @@
 #    * THE OBSERVABILITY STACK IS NOT ON IT. The viewer is not the system.
 #    * THREE VERTICAL BUS LANES, not one bar and not a mesh. A mesh would assert the very coupling the bus exists
 #      to remove; one bar would hide the only thing the picture is FOR -- which services share a medium and which
-#      never meet. bizTree and keySmith never touch. auKeep hears everyone and answers no one. enyMan is on all three.
+#      never meet. bizTree and keySmith never touch. auKeep hears everyone and answers no one. enyMan is on audit and entity.
 #    * DIRECTION ON EVERY TAP. publish = head on the lane; consume = head on the service; the IAM bus is
 #      request/reply so every participant is DOUBLE-headed; the broker has NO head -- it IS the medium.
 #    * THREE LINE COLOURS: lane colour = async bus, RED = database, BLACK = REST. A DB call and a REST call both
@@ -71,7 +71,7 @@
 #   * Not ONE bar: this file drew a single bar first, and that was wrong (mir0n caught it). There are THREE buses
 #     -- esquire.entity, esquire.kc, audit-c -- and that is the entire point of a bus CATALOG. One bar throws away
 #     the only thing the picture is FOR: which services share a medium and which never meet. bizTree and keySmith
-#     never touch. auKeep hears everyone and answers no one. enyMan sits on all three. A single bar hides all of it.
+#     never touch. auKeep hears everyone and answers no one. enyMan sits on audit and entity. A single bar hides all of it.
 #
 # REST and DB calls ARE point-to-point -- something called and WAITED for an answer -- so those get ARROWS. The
 # shape carries the meaning: an arrow is a call with an answer; a drop onto a bar is a publish with no answer.
@@ -396,7 +396,7 @@ def _svc(n):
 for _n, _lbl, _top in (("paacman", "paacMan", 30), ("biztree", "bizTree", 160),
                        ("enyman", "enyMan", 260), ("keysmith", "keySmith", 360)):
     _h, _a, _v = _svc(_n)
-    comp(_n, _lbl, _h, _v, SERVICES_D % _n, 560, _top, alarm=_a)
+    comp(_n, _lbl, _h, _v, SERVICES_D % _n, 620, _top, alarm=_a)
 
 # kcMaster has NO REST door and NO database -- it is reached only over the bus and owns no state, so its work
 # shows as MESSAGES, not requests. Putting req/s on it would be a permanently-zero number pretending to be a vital.
@@ -408,7 +408,7 @@ comp("kcmaster", "kcMaster",
      lambda r: [(MSG % ASEL("kcmaster", r), "ops", "msg/s"),
                 (CPU % SSEL("kcmaster", r), "percent", "cpu"),
                 (HEAP % ASEL("kcmaster", r), "bytes", "heap")],
-     SERVICES_D % "kcmaster", 560, 460,
+     SERVICES_D % "kcmaster", 620, 460,
      alarm=lambda r: alarm(w_errlog(ASEL("kcmaster", r)),
                            w_fail(ASEL("kcmaster", r), "messaging_error_total")))
 
@@ -428,7 +428,7 @@ comp("activemq", "ActiveMQ",
      lambda r: [('max(activemq_broker_total_message_count)', "short", "held"),
                 ('max(activemq_broker_current_connections_count)', "short", "conns"),
                 ('max(activemq_broker_memory_percent_usage)', "percent", "memory")],
-     "/d/esq-services/", 343, 596)
+     "/d/esq-services/", 373, 596)
 
 # ---- the edge: gateway -> Explorer (BFF), and KeyCloak ----
 # The gateway is NETTY, not Tomcat, so its bandwidth comes from reactor-netty; /actuator is excluded or the
@@ -442,7 +442,7 @@ comp("gateway", "gateway",
                 (CPU % SSEL("gateway", r), "percent", "cpu"),
                 ('sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!="/actuator"%s}[5m]))' % AND(r),
                  "Bps", "net out")],
-     SERVICES_D % "gateway", 745, 95,
+     SERVICES_D % "gateway", 805, 95,
      # ALL of the gateway's alarms ride the border: 5xx (it is shedding), errors, and a resilience4j breaker OPEN
      # (every breaker lives here -- the gateway wraps each downstream). These are dependency problems, not the
      # gateway's own health, so the fill stays green and the border alarms.
@@ -459,7 +459,7 @@ comp("keycloak", "KEYCLOAK",
      lambda r: [('sum(rate(http_server_requests_seconds_count{job="keycloak"}[5m]))', "reqps", "req/s"),
                 ('avg(process_cpu_usage{job="keycloak"}) * 100', "percent", "cpu"),
                 ('sum(jvm_memory_used_bytes{job="keycloak", area="heap"})', "bytes", "heap")],
-     "/d/esq-services/", 745, 460)
+     "/d/esq-services/", 805, 460)
 # The BFF is a StatefulSet too, so its pods carry the same -0 / -1 ordinal and its cards split like the rest.
 comp("backend", "Explorer",
      lambda r: health('max(up{job="esquire-bff"%s})' % AND(r),
@@ -472,7 +472,7 @@ comp("backend", "Explorer",
      lambda r: [('sum(rate(esq_bff_inbound_duration_seconds_count%s[5m]))' % ONLY(r), "reqps", "req/s"),
                 ('sum(rate(process_cpu_seconds_total{job="esquire-bff"%s}[5m])) * 100' % AND(r), "percent", "cpu"),
                 ('sum(process_resident_memory_bytes{job="esquire-bff"%s})' % AND(r), "bytes", "rss")],
-     "/d/esq-services/", 920, 95)
+     "/d/esq-services/", 980, 95)
 
 # ---- THE OBSERVABILITY STACK IS *NOT* ON THIS BOARD -- with ONE exception, the Collector (mir0n) ----
 # Prometheus / Loki / Tempo / Grafana / Alloy were on it briefly and came straight back off: this board answers
@@ -492,7 +492,7 @@ comp("collector", "COLLECTOR",
      lambda r: [('sum(rate(otelcol_receiver_accepted_spans_total[5m]))', "ops", "spans/s"),
                 ('sum(otelcol_exporter_queue_size)', "short", "queue"),
                 ('sum(increase(otelcol_receiver_refused_spans_total[%s]))' % ALERT_HOLD, "short", "refused")],
-     "/d/esq-services/", 745, 596, shape="ellipse")
+     "/d/esq-services/", 805, 596, shape="ellipse")
 
 ORDER = list(C.keys())
 
@@ -517,7 +517,7 @@ K8S_CARDS = {n: 2 for n in ("aukeep", "paacman", "biztree", "enyman", "keysmith"
 # The k8s board needs ROOM: a stack is PEEK_X wider than a single card, and the two right-hand columns would
 # otherwise sit ON TOP of the stack in front of them. These three numbers are the ONLY coordinates that differ
 # between the boards -- same arrangement, same lanes, same arrows, same picture.
-K8S_LEFT = {"gateway": 830, "keycloak": 830, "backend": 1080}
+K8S_LEFT = {"gateway": 890, "keycloak": 890, "backend": 1140}
 # The gateway and the Explorer sit on the CENTRE LINE of the gap between paacMan and bizTree, so the gateway's biz
 # lane tap runs through the middle of it. A stack is PEEK_Y taller, so the gap is lower on the x2 board:
 #   docker  paacMan ends 110, bizTree starts 160 -> centre 135 -> top 95
@@ -622,10 +622,9 @@ def ordinal(name, r):
 # was quiet is precisely the bug this board exists to prevent. The live view is the service graph below; this one
 # is the design.
 #
-# (Checked both: the live meters agree, except enyMan on esquire.kc -- declared CLIENT, no traffic in the window.
-#  It belongs on the board. That discrepancy is exactly why the board reads the config and not the metrics.)
 # ---------------------------------------------------------------------------------------------------------------
-# Lanes, left to right: Audit -- Biz Request-Response -- IAM Request-Response -- Entity Broadcast.
+# Lanes, left to right: Audit -- Biz Request-Response -- Claim Broadcast -- IAM Request-Response -- Entity
+# Broadcast.
 # THE SAME ORDER AS doc/media/ComponentModel.png, and it must stay that way: a monitoring board and an
 # architecture diagram that disagree about WHERE things are make the reader hold two maps at once, and
 # a reader who spots the difference has no way to know which picture to trust. They carry the model's
@@ -636,8 +635,8 @@ BUSES = [
     #   sub  : the service CONSUMES from the bus             (arrow points OUT of the lane, at the service)
     #   both : request/reply -- it does BOTH                 (double-headed)
     #
-    # The IAM bus is request/reply, so EVERY participant is `both`: enyMan and keySmith send a request and wait
-    # for the reply; kcMaster receives the request and sends the reply back. A single arrowhead on that bus would
+    # The IAM bus is request/reply, so EVERY participant is `both`: keySmith sends a request and waits for the
+    # reply; kcMaster receives the request and sends the reply back. A single arrowhead on that bus would
     # be a lie in one direction or the other -- and the component model draws it with double arrows for exactly
     # this reason.
     # The biz bus is request/reply too: the gateway sends the account command, paacMan runs it and replies.
@@ -647,12 +646,17 @@ BUSES = [
     dict(id="esquire.biz", name="Biz Request-Response Bus", kind="esquire.biz",
          color="#C9A0DC", left=360,
          flow={"gateway": "both", "paacman": "both"}),
+    # The claims bus: keySmith (a profile saved) and enyMan (a user moved) publish an eviction; every gateway
+    # replica drops that user from its claims cache.
+    dict(id="esquire.claims", name="Claim Broadcast Bus", kind="esquire.claims",
+         color="#7FC4BE", left=420,
+         flow={"keysmith": "pub", "enyman": "pub", "gateway": "sub"}),
     dict(id="esquire.kc", name="IAM Request-Response Bus", kind="esquire.kc",
-         color="#D9C48A", left=420,
-         flow={"enyman": "both", "keysmith": "both", "kcmaster": "both"}),
+         color="#D9C48A", left=480,
+         flow={"keysmith": "both", "kcmaster": "both"}),
     dict(id="esquire.entity", name="Entity Broadcast Bus", kind="esquire.entity",
-         color="#9DC08B", left=480,
-         flow={"enyman": "pub", "paacman": "pub", "biztree": "sub", "kcmaster": "sub"}),
+         color="#9DC08B", left=540,
+         flow={"enyman": "pub", "paacman": "pub", "biztree": "sub"}),
 ]
 
 # The lanes run the full height of the service column, so any service can tap any of them at its own height.
@@ -705,10 +709,10 @@ ARROWS = [
 PINNED_EDGE = {
     ("backend", "keycloak"): {"x": 0, "y": -1},    # leave Explorer's BOTTOM edge  (canvas y is UP)
     ("keycloak", "backend"): {"x": 0, "y": 1},     # land on KeyCloak's TOP edge
-    #xxx: the gateway's LEFT edge belongs to its biz lane tap alone, so its REST calls leave the BOTTOM edge, spread
-    # evenly with the KeyCloak line, and land on each service's RIGHT edge.
-    ("gateway", "biztree"): {"x": 0, "y": -1},     # leave the gateway's BOTTOM edge
-    ("gateway", "enyman"): {"x": 0, "y": -1},
+    #xxx: the gateway's LEFT edge carries its two lane taps and, LOW under them, the bizTree call; its other REST
+    # calls leave the BOTTOM edge, spread evenly with the KeyCloak line. Every one lands on the service's RIGHT edge.
+    ("gateway", "biztree"): {"x": -1, "y": 0},     # leave the gateway's LEFT edge, low
+    ("gateway", "enyman"): {"x": 0, "y": -1},      # leave the gateway's BOTTOM edge
     ("gateway", "keysmith"): {"x": 0, "y": -1},
     ("biztree", "gateway"): {"x": 1, "y": 0},      # land on each service's RIGHT edge
     ("enyman", "gateway"): {"x": 1, "y": 0},
@@ -717,12 +721,14 @@ PINNED_EDGE = {
 
 # Where a line MUST sit along its edge, when the even spread puts it in the wrong place. The value is the canvas
 # anchor: y is UP, so a POSITIVE number lifts the point above the middle of a side edge. Keyed (box, other end) --
-# a lane is "bus:<id>". The gateway's biz tap takes the MIDDLE of its left edge, so it runs on the gateway's centre
-# line through the gap above bizTree.
+# a lane is "bus:<id>". The gateway's two taps -- biz above, claims below -- sit 10 px either side of the middle of
+# its left edge, so both run through the gap above bizTree (docker 110..160, k8s 130..160).
 #xxx: the gateway's arrows land HIGH on a service's right edge, 10 px below the card's top. On the x2 board the card
 # behind peeks out 20 px down, so only that top strip of the front card's right edge is uncovered -- landing there
 # reaches the front card ("glue to the upper box") without running across instance 1.
-EDGE_BIAS = {("gateway", "bus:esquire.biz"): 0.0,
+EDGE_BIAS = {("gateway", "bus:esquire.biz"): 0.25,
+             ("gateway", "bus:esquire.claims"): -0.25,
+             ("gateway", "biztree"): -0.75,
              ("biztree", "gateway"): 0.75,
              ("enyman", "gateway"): 0.75,
              ("keysmith", "gateway"): 0.75}
@@ -1425,13 +1431,14 @@ def canvas():
             "THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): "
             "something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, "
             "where a service publishes to a destination and walks away, and who is listening is not its business. "
-            + (("THERE ARE TWO BARS, not one, because there are TWO BUSES -- and which services share a medium "
+            + (("THERE ARE FOUR BARS, not one, because there are FOUR BUSES -- and which services share a medium "
                 "(and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; "
-                "enyMan is on both. One bar would hide that. ")
+                "the gateway hears the claims bus only. One bar would hide that. ")
                if "aukeep" not in VISIBLE else
-               ("THERE ARE THREE BARS, not one, because there are THREE BUSES -- and which services share a medium "
+               ("THERE ARE FIVE BARS, not one, because there are FIVE BUSES -- and which services share a medium "
                 "(and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; "
-                "auKeep hears everyone and answers no one; enyMan sits on all three. One bar would hide all of that. "))
+                "auKeep hears everyone and answers no one; the gateway hears the claims bus only. One bar would "
+                "hide all of that. "))
             +
             "The observability stack is deliberately NOT on this board: the viewer is not the system, and six "
             "boxes of tooling watching the tooling would drown the question this board exists to answer."),
@@ -1504,8 +1511,9 @@ def flat_panels(panels):
 def build():
     """THE DRAWN TOPOLOGY -- the picture. This is the dashboard called "Esquire Topology".
 
-    It is the same arrangement as doc/media/ComponentModel.png: three VERTICAL bus lanes (Audit / IAM
-    Request-Response / Entity Broadcast, in that order), auKeep and the stores to their LEFT, the services to
+    It is the same arrangement as doc/media/ComponentModel.png: five VERTICAL bus lanes (Audit / Biz
+    Request-Response / Claim Broadcast / IAM Request-Response / Entity Broadcast, in that order), auKeep and the
+    stores to their LEFT, the services to
     their RIGHT, the gateway / Explorer / browser beyond them, and the broker beneath the lanes. The board and the
     document are ONE picture, with the numbers switched on.
 
@@ -1520,13 +1528,13 @@ def build():
     p.append(ts("Traffic per BUS (msg/s)", 0, 26, 8, "ops",
                 [tgt("sum by (bus_id) (rate(messaging_send_total[1m]))", "sent -> {{bus_id}}"),
                  tgt("sum by (bus_id) (rate(messaging_receive_total[1m]))", "recv <- {{bus_id}}")],
-                desc=("The two lanes above, as traffic. esquire.kc and esquire.entity are SEPARATE MEDIA with "
-                      "different participants -- which is what the two lanes in the picture say, and what a single "
-                      "bar (or a mesh of arrows) would hide."
+                desc=("The four lanes above, as traffic. esquire.biz, esquire.claims, esquire.kc and "
+                      "esquire.entity are SEPARATE MEDIA with different participants -- which is what the four "
+                      "lanes in the picture say, and what a single bar (or a mesh of arrows) would hide."
                       if "aukeep" not in VISIBLE else
-                      "The three lanes above, as traffic. audit-c, esquire.kc and esquire.entity are SEPARATE "
-                      "MEDIA with different participants -- which is what the three lanes in the picture say, and "
-                      "what a single bar (or a mesh of arrows) would hide.")))
+                      "The five lanes above, as traffic. audit-c, esquire.biz, esquire.claims, esquire.kc and "
+                      "esquire.entity are SEPARATE MEDIA with different participants -- which is what the five "
+                      "lanes in the picture say, and what a single bar (or a mesh of arrows) would hide.")))
     p.append(ts("Queue depth per destination  (what the BROKER holds)", 8, 26, 8, "short",
                 [tgt("activemq_queue_depth", "{{destination}}")],
                 desc="Flat at zero is healthy. Climbing = consumers gone, wedged, or slower than the producers -- "
@@ -1991,7 +1999,7 @@ def main():
     arrows0 = list(ARROWS)
     # OKE app tier x2 (the six Java services) and the BFF. auKeep is dropped below.
     OKE_CARDS = {n: 2 for n in ("paacman", "biztree", "enyman", "keysmith", "kcmaster", "gateway", "backend")}
-    # (drop_comp, drop_bus, bus_left) per target. OKE: drop auKeep + the audit lane, and shift the three lanes
+    # (drop_comp, drop_bus, bus_left) per target. OKE: drop auKeep + the audit lane, and shift the four lanes
     # that are left 30px right, so the broker (which does NOT move) stays centred under them.
     for path, model, lefts, tops, drop_comp, drop_bus, bus_left in (
             (os.path.join(root, "compose", "o11y", "grafana", "provisioning", "dashboards",
@@ -2000,7 +2008,8 @@ def main():
                           "esquire-topology.json"), K8S_CARDS, K8S_LEFT, K8S_TOP, set(), set(), {}),
             (os.path.join(root, "k8s-oci", "grafana", "esquire-topology.json"),
                           OKE_CARDS, K8S_LEFT, K8S_TOP, {"aukeep"}, {"audit-c"},
-                          {"esquire.biz": 330, "esquire.kc": 390, "esquire.entity": 450})):
+                          {"esquire.biz": 330, "esquire.claims": 390, "esquire.kc": 450,
+                           "esquire.entity": 510})):
         CARDS = model
         LAYERS = [[n for n in layer if n not in drop_comp] for layer in layers0]
         VISIBLE = [n for layer in LAYERS[:LAYERS_ON] for n in layer]
@@ -2015,7 +2024,7 @@ def main():
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             json.dump(build(), f, indent=1)
-        tag = ("OKE -- x2, no auKeep, three lanes centred over the broker" if drop_comp
+        tag = ("OKE -- x2, no auKeep, four lanes centred over the broker" if drop_comp
                else "k8s -- x2, one card per instance" if model else "docker -- single instance")
         print("wrote", path, "(%s)" % tag)
 

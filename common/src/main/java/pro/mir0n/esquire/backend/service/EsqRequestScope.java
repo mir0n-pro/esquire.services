@@ -9,6 +9,8 @@
  * 10/19/2026 mir0n  created: the request work every front shares: claimsComplete(), bind() / unbind() of the
  *                   EsqRequestContext with the MDC uid, the INCOMING / OUTGOING lines (written with the caller's
  *                   logger) and the esq.srv.outer / esq.srv.inner meters
+ * 11/23/2026 mir0n  v2.0.3 -- rolesOf(String): the roles out of the X-Esq-Roles header, split on commas and
+ *                   trimmed
  */
 
 package pro.mir0n.esquire.backend.service;
@@ -21,6 +23,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.common.EsqConstants;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -45,6 +48,17 @@ public class EsqRequestScope {
     /** The claims a service needs from its caller: the entity id, the root path and at least one role. */
     public static boolean claimsComplete(Object uid, Object rootPath, List<String> roles) {
         return uid != null && rootPath != null && roles != null && !roles.isEmpty();
+    }
+
+    /** The roles out of the gateway's X-Esq-Roles header (comma-separated); empty when the header is absent or blank. */
+    public static List<String> rolesOf(String header) {
+        List<String> ret = new ArrayList<>();
+        if (header != null && !header.isBlank()) {
+            for (String role : header.split(",")) {
+                ret.add(role.trim());
+            }
+        }
+        return ret;
     }
 
     /** Binds the caller's context to this thread, with its MDC ids and uid. Pair with {@link #unbind}. */

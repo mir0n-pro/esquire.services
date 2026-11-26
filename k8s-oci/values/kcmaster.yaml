@@ -15,8 +15,7 @@ keycloak:
   realm: esquire
   # esq-kcMaster = the confidential service-account client (client_credentials); admin-cli is public and CANNOT
   # drive the KC admin REST API. The secret is injected UNIFORMLY via --set keycloak.adminClientSecret at install
-  # -- same mechanism as the BFF (keycloak.clientSecret) and gateway (tokenRelay.phantom.exchangeClientSecret)
-  # secrets -- so it is not committed here.
+  # -- same mechanism as the BFF (keycloak.clientSecret) secret -- so it is not committed here.
   adminClientId: esq-kcMaster
 
 logging:

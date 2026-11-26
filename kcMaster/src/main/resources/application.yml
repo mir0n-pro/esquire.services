@@ -18,12 +18,8 @@ keycloak:
     client-secret: ${KC_ADMIN_CLIENT_SECRET:}
     connect-timeout-ms: ${KC_ADMIN_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms:    ${KC_ADMIN_READ_TIMEOUT_MS:10000}
-kcmaster:
-  path-buffer:
-    ttl-ms:            ${KCMASTER_PATH_BUFFER_TTL_MS:10000}
-    prune-interval-ms: ${KCMASTER_PATH_BUFFER_PRUNE_MS:30000}
 # Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
-# Here: this service's bus REFS + per-service knob OVERRIDES (kc SERVER + entity consumer).
+# Here: this service's bus REF + per-service knob OVERRIDES (kc SERVER).
 esquire:
   # Observability umbrella (v1.2.11 O1/O2) via common.ObservabilityConfig: ONE master switch gates BOTH
   # tracing and metrics -- a service never has one without the other. Off by default = zero cost; the
@@ -56,10 +52,6 @@ esquire:
       # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
       # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
       business-enabled: ${ESQ_METRICS_BUSINESS:true}
-# Pure OAuth (lab): the claims stay in Esq2025 -- no root path and no roles are written to KeyCloak, and no
-# moved path is parked. Off = the claims mode, as before.
-esq:
-  pure-oauth: ${ESQ_PURE_OAUTH:false}
 herald:
   kc-bus:
     messaging-bus:
@@ -82,16 +74,6 @@ herald:
         send-retry: ${KC_SEND_RETRY:false}
         send-retry-backoff-sec: ${KC_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${KC_SEND_RETRY_MAX_ATTEMPTS:0}
-  entity-bus:
-    messaging-bus:
-      bus-id: ${ENTITY_BUS_ID:esquire.entity}
-      slot-id: ${ENTITY_SLOT_ID:entity}
-      role: CLIENT
-      x-rod:
-        receiver-pool:
-          size: ${ENTITY_BROADCAST_POOL_SIZE:4}
-          mode: ${ENTITY_BROADCAST_POOL_MODE:platform}   # platform | virtual | virtual-per-task
-        concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}

@@ -59,17 +59,10 @@ rem passed here REPLACES the value the previous install stored and the release c
 rem credential that cannot authenticate, while the deploy reports success. An unset variable therefore
 rem contributes NO --set at all and what the release already holds stands.
 set "SET_BFF_KC="
-set "SET_GW_EXCHANGE="
 set "SET_BFF_SESSION="
 set "SET_KCMASTER_ADMIN="
 if not "%bff_kc_secret%"=="" set "SET_BFF_KC=--set keycloak.clientSecret=%bff_kc_secret%"
 if "%bff_kc_secret%"=="" echo [!] BFF_KC_SECRET is not set -- the release keeps what it holds; on a FIRST install the browser login will FAIL. KeyCloak: realm esquire -^> clients -^> esq-angular -^> Credentials.
-
-rem Phantom Token Relay -- esq-gw-exchange (confidential) client secret used by the
-rem gate to authenticate to KC /token for RFC 8693 exchange. Both relay allowlists
-rem are EMPTY on OKE (values\gateward.yaml), so this is set but dormant.
-if not "%gw_exchange_secret%"=="" set "SET_GW_EXCHANGE=--set tokenRelay.phantom.exchangeClientSecret=%gw_exchange_secret%"
-if "%gw_exchange_secret%"=="" echo [!] GW_EXCHANGE_SECRET is not set -- the release keeps what it holds; on a FIRST install the phantom token relay will FAIL. KeyCloak: realm esquire -^> clients -^> esq-gw-exchange -^> Credentials.
 
 rem BFF session-cookie HMAC secret. Lower-risk than the KC client secret:
 rem leak alone does not grant access (session IDs are server-side random,
@@ -89,8 +82,8 @@ rem esq-kcMaster KC admin service-account client secret (client_credentials -> K
 rem REST API). Mesnie carries the identity work in process, so it is Mesnie that takes
 rem this now -- the same secret, handed to one workload instead of a kcMaster of its own.
 rem esq-kcMaster is the ONE published client holding realm-management realm-admin -- every
-rem other service account (esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M) has none. Its
-rem secret is therefore the realm's master key, not one credential among seven.
+rem other service account (esq-hauberk) has none. Its
+rem secret is therefore the realm's master key, not one credential among three.
 rem
 rem NO FALLBACK AND NO SKIP, on any target, deliberately. A default reinstates the published
 rem value; a skip leaves the release running the OLD value after a rotation -- and both report
@@ -216,8 +209,7 @@ echo --- Installing gateward...
 call helm upgrade --install esquire-gateward %CHARTS%\esquire-gateward --force-conflicts ^
   -f values\gateward.yaml ^
   --set image.tag=%IMAGE_TAG% ^
-  --set db.password=%PG_PW% ^
-  %SET_GW_EXCHANGE% || exit /b 1
+  --set db.password=%PG_PW% || exit /b 1
 
 echo Waiting for gateward...
 kubectl rollout status statefulset/esquire-gateward -n default --timeout=180s

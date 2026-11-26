@@ -17,6 +17,8 @@
 #                   verifier's hand-kept list did.
 #                   ALL THREE PILLARS: metrics (meters/gauges), tracing (span NAMES), and LOGGING (the per-service
 #                   stdout stream).
+# 11/25/2026 mir0n  v2.0.3 -- the esq.biz.gw.tokenrelay.* entries out; esq.biz.gw.oauth.total (the gateway's
+#                   claims cache) and esq.svc.key.claims (the keySmith claims read) described
 """
 The Esquire o11y ASSET INVENTORY -- one row per signal we collect, with its coverage.
 
@@ -181,15 +183,9 @@ DESC = {
         "Duration of the keep-sink DB write (T8-C).",
         "The DB write cost at the keep sink. NOTE: collected but currently NEITHER verified NOR drawn -- it is "
         "the meter cited in the I39/I40 argument as proof the write is covered, yet nobody can see it (I48)."),
-    "esq.biz.gw.tokenrelay.total": (
-        "Token Relay cache hit/miss.",
-        "THE most load-bearing number on the board: a MISS is a live KC /token round-trip on the hot path."),
-    "esq.biz.gw.tokenrelay.acquire.total": (
-        "Token Relay KC acquires by outcome.", "How often KeyCloak is actually called."),
-    "esq.biz.gw.tokenrelay.duration": (
-        "KC /token round-trip duration by outcome (ok|error|cancelled).",
-        "Answers I42/L2. Feeds I47's 'KC token-relay (per gw request)' band -- amortized over gateway REQUESTS, "
-        "not per relay, because the relay only fires on a cache miss."),
+    "esq.biz.gw.oauth.total": (
+        "The gateway's claims cache, by result (hit | miss | stale).",
+        "A MISS is a keySmith claims query on the request path; the hit rate is what the cache saves."),
     # ---- the bus (EsqRodObserver). Tagged bus-id / slot / msgType; "slot" is the bus leg, never "service". ----
     "messaging.send.total": (
         "Messages SENT on the bus, by bus-id / slot / msgType.", "x-rod producer throughput."),
@@ -217,7 +213,7 @@ DESC = {
         "New in I42/L8+L9.",
         "The BFF<->gw hop's OWN number -- the one hop in the whole REST collaboration that had none, while its "
         "twin (gw<->srv) had a band. Drawn as the outermost RAW layer. Deliberately NOT a derived band: the "
-        "gateway also serves direct Token Relay clients, so esq.bff.outbound - gw.outer would compare two "
+        "gateway also serves direct clients, so esq.bff.outbound - gw.outer would compare two "
         "populations."),
     # ---- the @EsqTraced / EsqTraceMark OPERATION marks. CROSS-PILLAR: each is a span AND a timer.
     # o11y-verify checks trace NODES (service names), never these span NAMES -- and their esq_svc_* timer half is
@@ -261,6 +257,9 @@ DESC = {
     # keySmith
     "esq.svc.key.read": ("@EsqTraced on the keySmith key read.", "Span + timer for a permission/key read."),
     "esq.svc.key.save": ("@EsqTraced on the keySmith key save.", "Span + timer for a permission write."),
+    "esq.svc.key.claims": (
+        "@EsqTraced on the keySmith claims read (the gateway's cache miss).",
+        "Span + timer for the claims query behind an OAuth request."),
     # pacMan accounts
     "esq.svc.acct.read": ("@EsqTraced on the pacMan account read.", "Span + timer for an account read."),
     "esq.svc.acct.save": ("@EsqTraced on the pacMan account save.", "Span + timer for an account write."),

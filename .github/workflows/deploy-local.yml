@@ -1,9 +1,9 @@
 # Esquire services -- deploy to the LOCAL targets (phase 2): docker-compose AND Docker Desktop k8s.
 # On an intermediate commit (push to a pending-** branch), a SELF-HOSTED runner on the dev box builds
 # the full stack and brings it up on BOTH local targets and runs the e2e suite against each, so a green
-# pipeline proves both environments come up on the pending code AND still behave -- the two Token Relay
-# specs included, which no other pipeline runs. Full stack = the 6 Java services + the explorer backend/BFF (plus the
-# explorer frontend container on docker-compose), so the explorer repo is checked out alongside this one.
+# pipeline proves both environments come up on the pending code AND still behave. Full stack = the 6 Java
+# services + the explorer backend/BFF (plus the explorer frontend container on docker-compose), so the
+# explorer repo is checked out alongside this one.
 #
 # SECURITY (public repo + self-hosted runner): triggers ONLY on push to our own pending-** branches,
 # NEVER on pull_request -- a fork PR cannot push to our branches, so it can never run on the runner.

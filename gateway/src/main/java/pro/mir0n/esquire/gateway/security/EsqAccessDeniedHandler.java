@@ -8,6 +8,9 @@
  *  History:
  * 09/05/2026 mir0n  created: writes a ProblemDetail on a refused route, naming the caller from
  *                   preferred_username, esq_uid or sub, in place of Spring's empty 403
+ * 11/22/2026 mir0n  v2.0.3 -- the caller is named from preferred_username or sub (esq_uid out)
+ * 11/23/2026 mir0n  v2.0.3 -- the preferred_username claim name is EsqConstants.JWT_CLAIM_PREFERRED_USERNAME;
+ *                   the own CLAIM_PREFERRED_USERNAME out
  */
 package pro.mir0n.esquire.gateway.security;
 
@@ -42,7 +45,6 @@ public class EsqAccessDeniedHandler implements ServerAccessDeniedHandler {
     private static final Logger log    = LoggerFactory.getLogger(EsqAccessDeniedHandler.class);
     private static final Logger devLog = LoggerFactory.getLogger("develop." + EsqAccessDeniedHandler.class.getName());
 
-    private static final String CLAIM_PREFERRED_USERNAME = "preferred_username";
     private static final String UNKNOWN_LOGIN = "This login";
     private static final String TITLE = "No privileges";
     private static final String TYPE  = "https://mir0n.pro/errors";
@@ -60,10 +62,7 @@ public class EsqAccessDeniedHandler implements ServerAccessDeniedHandler {
         Authentication auth = context.getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof Jwt) {
             Jwt token = (Jwt) auth.getPrincipal();
-            String name = token.getClaimAsString(CLAIM_PREFERRED_USERNAME);
-            if (name == null || name.isBlank()) {
-                name = token.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ID);
-            }
+            String name = token.getClaimAsString(EsqConstants.JWT_CLAIM_PREFERRED_USERNAME);
             if (name == null || name.isBlank()) {
                 name = token.getSubject();
             }

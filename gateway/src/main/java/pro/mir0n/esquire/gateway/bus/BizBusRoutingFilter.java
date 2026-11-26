@@ -12,6 +12,10 @@
  *                   headers from the answer; a body that is not a JSON object, or no numeric kind, answers 400
  * 11/17/2026 mir0n  v2.0.2 -- uid / rootPath / roles from the X-Esq-* headers when the gateway set them (pure
  *                   OAuth), else from the token
+ * 11/22/2026 mir0n  v2.0.3 -- uid / rootPath / roles from the X-Esq-* headers only; the token is not read
+ *                   (tokenOf, rolesOf(Map) and the JwtClaimPeek use out)
+ * 11/23/2026 mir0n  v2.0.3 -- the roles header parse is EsqRequestScope.rolesOf(); the private rolesOf(String)
+ *                   out
  */
 
 package pro.mir0n.esquire.gateway.bus;
@@ -33,14 +37,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
+import pro.mir0n.esquire.backend.service.EsqRequestScope;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.gateway.security.JwtClaimPeek;
 import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.messaging.RodEvent;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +64,6 @@ public class BizBusRoutingFilter implements GlobalFilter, Ordered {
     public static final String SCHEME = "bus";
     private static final String FIELDS_ATTR = BizBusRoutingFilter.class.getName() + ".fields";
     public static final String ANSWER_BODY_ATTR = BizBusRoutingFilter.class.getName() + ".answerBody";
-    private static final String BEARER = "Bearer ";
 
     private final BizBusClient client;
     private final ObjectMapper objectMapper;
@@ -129,29 +131,18 @@ public class BizBusRoutingFilter implements GlobalFilter, Ordered {
         return ret;
     }
 
-    // The command: the operation from the path, kind/id/cmd from the query, the caller's claims from the token
-    // the route sends on (after the token relay), the body as it is. The correlation id, settled by
+    // The command: the operation from the path, kind/id/cmd from the query, the caller's claims from the headers
+    // the gateway set, the body as it is. The correlation id, settled by
     // RequestTraceFilter for every request, keys the answer.
     private RodEvent commandOf(ServerWebExchange exchange, URI url, Map<String, Object> fields) {
         MultiValueMap<String, String> query = exchange.getRequest().getQueryParams();
         String path = url.getPath();
         String operation = path.substring(path.lastIndexOf('/') + 1);
+        //xxx: the gateway set these headers itself -- HeaderFilter strips every inbound copy
         HttpHeaders headers = exchange.getRequest().getHeaders();
-        Object uid;
-        Object rootPath;
-        List<String> roles;
-        //xxx: the claim headers exist only when the gateway set them (inbound copies are stripped): a pure
-        // OAuth caller; otherwise the claims are in the token
-        if (headers.getFirst(EsqConstants.X_ESQ_UID) != null) {
-            uid = headers.getFirst(EsqConstants.X_ESQ_UID);
-            rootPath = headers.getFirst(EsqConstants.X_ESQ_ROOT_PATH);
-            roles = rolesOf(headers.getFirst(EsqConstants.X_ESQ_ROLES));
-        } else {
-            Map<String, Object> claims = JwtClaimPeek.peekClaims(tokenOf(headers));
-            uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID);
-            rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
-            roles = rolesOf(claims);
-        }
+        String uid = headers.getFirst(EsqConstants.X_ESQ_UID);
+        String rootPath = headers.getFirst(EsqConstants.X_ESQ_ROOT_PATH);
+        List<String> roles = EsqRequestScope.rolesOf(headers.getFirst(EsqConstants.X_ESQ_ROLES));
 
         Map<String, Object> body = new HashMap<>();
         body.put(EsqConstants.BIZ_KEY_OPERATION, operation);
@@ -168,7 +159,7 @@ public class BizBusRoutingFilter implements GlobalFilter, Ordered {
         return new RodEvent(null, kindOf(query.getFirst("kind")), query.getFirst("id"), null, null,
                 System.currentTimeMillis(), exchange.getAttribute(EsqConstants.ESQ_CORRELATION_ID),
                 exchange.getRequest().getHeaders().getFirst(EsqConstants.X_REQUEST_ID),
-                uid != null ? uid.toString() : null, null, BusConstants.MSG_TYPE_REQUEST, body);
+                uid, null, BusConstants.MSG_TYPE_REQUEST, body);
     }
 
     // The request's server span, from the observation context the reactive HttpWebHandlerAdapter parks on the
@@ -186,46 +177,12 @@ public class BizBusRoutingFilter implements GlobalFilter, Ordered {
         return ret;
     }
 
-    private static String tokenOf(HttpHeaders headers) {
-        String ret = null;
-        String auth = headers.getFirst(HttpHeaders.AUTHORIZATION);
-        if (auth != null && auth.startsWith(BEARER)) {
-            ret = auth.substring(BEARER.length());
-        }
-        return ret;
-    }
-
     private static int kindOf(String kind) {
         int ret;
         try {
             ret = Integer.parseInt(kind);
         } catch (NumberFormatException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "kind is required and must be a number", e);
-        }
-        return ret;
-    }
-
-    private static List<String> rolesOf(String header) {
-        List<String> ret = new ArrayList<>();
-        if (header != null && !header.isBlank()) {
-            for (String role : header.split(",")) {
-                ret.add(role.trim());
-            }
-        }
-        return ret;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static List<String> rolesOf(Map<String, Object> claims) {
-        List<String> ret = new ArrayList<>();
-        Object realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS);
-        if (realmAccess instanceof Map) {
-            Object roles = ((Map<String, Object>) realmAccess).get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES);
-            if (roles instanceof List) {
-                for (Object role : (List<Object>) roles) {
-                    ret.add(String.valueOf(role));
-                }
-            }
         }
         return ret;
     }

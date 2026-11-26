@@ -122,12 +122,11 @@ rem passed here REPLACES the value the previous install stored, and the release 
 rem that cannot work -- the browser answering unauthorized_client while the deploy itself reported success.
 rem An unset variable therefore contributes NO --set at all, and what the release already holds stands.
 set "SET_KCMASTER_ADMIN="
-set "SET_GW_EXCHANGE="
 set "SET_BFF_KC="
 set "SET_BFF_SESSION="
 rem esq-kcMaster is the ONE published client holding realm-management realm-admin -- every
-rem other service account (esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M) has none. Its
-rem secret is therefore the realm's master key, not one credential among seven.
+rem other service account (esq-hauberk) has none. Its
+rem secret is therefore the realm's master key, not one credential among three.
 rem
 rem NO FALLBACK AND NO SKIP, on any target, deliberately. A default reinstates the published
 rem value; a skip leaves the release running the OLD value after a rotation -- and both report
@@ -140,11 +139,9 @@ if "%KCMASTER_ADMIN_SECRET%"=="" (
     exit /b 1
 )
 set "SET_KCMASTER_ADMIN=--set keycloak.adminClientSecret=%KCMASTER_ADMIN_SECRET%"
-if not "%GW_EXCHANGE_SECRET%"=="" set "SET_GW_EXCHANGE=--set tokenRelay.phantom.exchangeClientSecret=%GW_EXCHANGE_SECRET%"
 if not "%BFF_KC_SECRET%"=="" set "SET_BFF_KC=--set keycloak.clientSecret=%BFF_KC_SECRET%"
 if not "%BFF_SESSION_SECRET%"=="" set "SET_BFF_SESSION=--set session.secret=%BFF_SESSION_SECRET%"
 if "%BFF_KC_SECRET%"=="" echo [!] BFF_KC_SECRET is not set -- the release keeps what it holds; on a FIRST install the browser login will FAIL. KeyCloak: realm esquire -^> clients -^> esq-angular -^> Credentials.
-if "%GW_EXCHANGE_SECRET%"=="" echo [!] GW_EXCHANGE_SECRET is not set -- the release keeps what it holds; on a FIRST install the phantom token relay will FAIL. KeyCloak: realm esquire -^> clients -^> esq-gw-exchange -^> Credentials.
 if "%BFF_SESSION_SECRET%"=="" echo [!] BFF_SESSION_SECRET is not set -- the release keeps what it holds. Set any random string.
 
 rem === KC-dependent ===
@@ -152,10 +149,8 @@ echo --- Installing kcmaster...
 call helm upgrade --install esquire-kcmaster  charts\esquire-kcmaster  -f values\kcmaster.yaml --reset-then-reuse-values --force-conflicts ^
   %SET_KCMASTER_ADMIN% || exit /b 1
 
-rem Gateway: dev exchange-client secret passed via --set (matches realm import).
 echo --- Installing gateway...
-call helm upgrade --install esquire-gateway   charts\esquire-gateway   -f values\gateway.yaml --reset-then-reuse-values --force-conflicts ^
-  %SET_GW_EXCHANGE% || exit /b 1
+call helm upgrade --install esquire-gateway   charts\esquire-gateway   -f values\gateway.yaml --reset-then-reuse-values --force-conflicts || exit /b 1
 
 echo Waiting for gateway...
 kubectl rollout status statefulset/esquire-gateway-gateway -n default --timeout=60s

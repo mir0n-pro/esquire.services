@@ -1,5 +1,19 @@
 Esquire keySmith Microservice
 
+11/24/2026 mir0n  v2.0.3 -- dead code out
+messaging.KcBusAdapter
+  - v2.0.3 -- the empty postMessage() out
+
+11/23/2026 mir0n  v2.0.3 -- pure OAuth only: keySmith
+service.impl.KeySmithService
+  - v2.0.3 -- evictClaims(): a save sends the DELETE of the access profile on the claims rod itself (the
+    ClaimsBusPublisher out of the constructor); the identity request never carries the root path or the roles
+    (identityEvent() loses its roles argument); the race-8c test hook (KEYSMITH_TEST_CONNECT_HOLD_MS) out
+KeySmithApplication
+  - v2.0.3 -- the ClaimsBusPublisher bean out; the claims bus is always built beside the kc and audit buses
+resources/application.yml
+  - esq.pure-oauth (ESQ_PURE_OAUTH) out; the claims-bus leg always built
+
 11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): the claims lookup and the claims bus; login ids in lower case
 controller.KeySmithController
   - GET /esq-claims?loginId=: the user claims, for the gateway's lookup

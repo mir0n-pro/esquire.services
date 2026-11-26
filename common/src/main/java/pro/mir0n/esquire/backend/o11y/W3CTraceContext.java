@@ -38,8 +38,8 @@ final class W3CTraceContext {
             if (parts.length >= 4 && isSpanId(parts[2])) {
                 TraceFlags flags = "00".equals(parts[3]) ? TraceFlags.getDefault() : TraceFlags.getSampled();
                 // TraceState is EMPTY by design -- no baggage / tracestate (I37, reviewed + accepted): app-level
-                // context (user identity, the rootPath "tenant") rides the JWT bearer, RELAYED to REST downstreams
-                // by the Token Relay, and bus events carry their own payload -- so there is nothing to propagate in
+                // context (user identity, the rootPath "tenant") rides the X-Esq-* headers the gateway sets for
+                // REST downstreams, and bus events carry their own payload -- so there is nothing to propagate in
                 // tracestate. Add a baggage propagator only if a real cross-hop app-context need ever appears.
                 ret = SpanContext.createFromRemoteParent(correlationId, parts[2], flags, TraceState.getDefault());
             }

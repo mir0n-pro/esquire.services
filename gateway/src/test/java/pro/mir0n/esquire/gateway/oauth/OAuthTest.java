@@ -6,7 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  */
 
-package pro.mir0n.esquire.gateway.lab.pureoauth;
+package pro.mir0n.esquire.gateway.oauth;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,14 +33,13 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class PureOAuthTest {
+class OAuthTest {
 
     private static final Duration WAIT = Duration.ofSeconds(2);
     private static final EsqUserClaims ADMIN =
@@ -82,7 +81,7 @@ class PureOAuthTest {
     @DisplayName("cache: a miss asks keySmith once, the next request is a hit and asks nothing")
     void cache_missThenHit() {
         CountingClient client = new CountingClient(Mono.just(ADMIN));
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(client, 60_000L);
+        ClaimsCache cache = new ClaimsCache(client, 60_000L);
 
         assertThat(cache.claimsOf("mainadmin").block(WAIT)).isEqualTo(ADMIN);
         assertThat(cache.claimsOf("mainadmin").block(WAIT)).isEqualTo(ADMIN);
@@ -93,12 +92,12 @@ class PureOAuthTest {
     @DisplayName("cache: the login id goes in lower case -- one user whatever the token's case, keySmith asked in lower case")
     void cache_loginIdLowerCase() {
         CountingClient client = new CountingClient(Mono.just(ADMIN));
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(client, 60_000L);
+        ClaimsCache cache = new ClaimsCache(client, 60_000L);
 
-        cache.claimsOf("esq-hauberk-S@mir0n.pro").block(WAIT);
-        cache.claimsOf("esq-hauberk-s@mir0n.pro").block(WAIT);
+        cache.claimsOf("Esq-Hauberk@mir0n.pro").block(WAIT);
+        cache.claimsOf("esq-hauberk@mir0n.pro").block(WAIT);
         assertThat(client.calls.get()).isEqualTo(1);
-        assertThat(client.askedFor).isEqualTo("esq-hauberk-s@mir0n.pro");
+        assertThat(client.askedFor).isEqualTo("esq-hauberk@mir0n.pro");
         assertThat(cache.size()).isEqualTo(1);
     }
 
@@ -106,7 +105,7 @@ class PureOAuthTest {
     @DisplayName("cache: evict by uid removes the user, so the next request asks keySmith again")
     void cache_evict() {
         CountingClient client = new CountingClient(Mono.just(ADMIN));
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(client, 60_000L);
+        ClaimsCache cache = new ClaimsCache(client, 60_000L);
 
         cache.claimsOf("mainadmin").block(WAIT);
         cache.evict("5");
@@ -120,7 +119,7 @@ class PureOAuthTest {
     void cache_evictByUidScans() {
         EsqUserClaims other = new EsqUserClaims("teller", "9", "1.3.", List.of("TREE"), 1L);
         IUserClaimsClient client = loginId -> Mono.just("teller".equals(loginId) ? other : ADMIN);
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(client, 60_000L);
+        ClaimsCache cache = new ClaimsCache(client, 60_000L);
         cache.claimsOf("mainadmin").block(WAIT);
         cache.claimsOf("main.admin@mir0n.pro").block(WAIT);
         cache.claimsOf("teller").block(WAIT);
@@ -135,7 +134,7 @@ class PureOAuthTest {
     @DisplayName("cache: a failed lookup is not cached -- the next request asks again")
     void cache_failureNotStored() {
         CountingClient client = new CountingClient(Mono.error(new BadCredentialsException("none")));
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(client, 60_000L);
+        ClaimsCache cache = new ClaimsCache(client, 60_000L);
 
         assertThatThrownBy(() -> cache.claimsOf("nobody").block(WAIT)).isInstanceOf(BadCredentialsException.class);
         assertThat(cache.size()).isZero();
@@ -148,7 +147,7 @@ class PureOAuthTest {
     void cache_evictedWhileAsked() {
         EsqUserClaims moved = new EsqUserClaims("mainadmin", "5", "1.2.", List.of("SUPERVIZOR", "TREE"), 1L);
         AtomicInteger calls = new AtomicInteger();
-        AtomicReference<PureOAuthClaimsCache> holder = new AtomicReference<>();
+        AtomicReference<ClaimsCache> holder = new AtomicReference<>();
         IUserClaimsClient client = loginId -> Mono.fromCallable(() -> {
             EsqUserClaims ret = moved;
             if (calls.incrementAndGet() == 1) {
@@ -157,7 +156,7 @@ class PureOAuthTest {
             }
             return ret;
         });
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(client, 60_000L);
+        ClaimsCache cache = new ClaimsCache(client, 60_000L);
         holder.set(cache);
 
         assertThat(cache.claimsOf("mainadmin").block(WAIT)).isEqualTo(moved);
@@ -170,8 +169,8 @@ class PureOAuthTest {
     @DisplayName("listener: an access-profile DELETE evicts the uid; any other event is ignored")
     void listener_evicts() {
         CountingClient client = new CountingClient(Mono.just(ADMIN));
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(client, 60_000L);
-        PureOAuthEvictionListener listener = new PureOAuthEvictionListener(cache, true);
+        ClaimsCache cache = new ClaimsCache(client, 60_000L);
+        EvictionListener listener = new EvictionListener(cache);
         cache.claimsOf("mainadmin").block(WAIT);
 
         listener.onEvent(new RodEvent(RodEvent.Op.UPDATE, EsqConstants.KIND_ACCESS_PROFILE, "5", null, null,
@@ -185,13 +184,12 @@ class PureOAuthTest {
     // ---- the converter ----
 
     @Test
-    @DisplayName("converter: a pure client's roles come from the claims, and the claims ride on the details")
-    void converter_pureClient() {
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(new CountingClient(Mono.just(ADMIN)), 60_000L);
-        PureOAuthAuthenticationConverter converter = new PureOAuthAuthenticationConverter(
-                Set.of("esq-angular-pure-oauth"), cache, jwt -> Mono.error(new AssertionError("claims mode")));
+    @DisplayName("converter: the roles come from the claims, and the claims ride on the details")
+    void converter_rolesFromClaims() {
+        ClaimsCache cache = new ClaimsCache(new CountingClient(Mono.just(ADMIN)), 60_000L);
+        AuthenticationConverter converter = new AuthenticationConverter(cache);
 
-        AbstractAuthenticationToken auth = converter.convert(token("esq-angular-pure-oauth", "mainadmin")).block(WAIT);
+        AbstractAuthenticationToken auth = converter.convert(token("esq-angular", "mainadmin")).block(WAIT);
 
         assertThat(auth).isInstanceOf(JwtAuthenticationToken.class);
         assertThat(authorities(auth)).containsExactly("ROLE_SUPERVIZOR", "ROLE_TREE");
@@ -200,45 +198,24 @@ class PureOAuthTest {
     }
 
     @Test
-    @DisplayName("converter: a client not on the list goes to the claims mode, and keySmith is never asked")
-    void converter_claimsClient() {
-        CountingClient client = new CountingClient(Mono.just(ADMIN));
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(client, 60_000L);
-        AtomicReference<Jwt> seen = new AtomicReference<>();
-        PureOAuthAuthenticationConverter converter = new PureOAuthAuthenticationConverter(
-                Set.of("esq-angular-pure-oauth"), cache, jwt -> {
-                    seen.set(jwt);
-                    return Mono.just(new JwtAuthenticationToken(jwt));
-                });
-        Jwt jwt = token("esq-angular", "mainadmin");
-
-        converter.convert(jwt).block(WAIT);
-
-        assertThat(seen.get()).isSameAs(jwt);
-        assertThat(client.calls.get()).isZero();
-    }
-
-    @Test
     @DisplayName("converter: keySmith down is a refused login (AuthenticationServiceException), never a 500")
     void converter_keySmithDown() {
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(
+        ClaimsCache cache = new ClaimsCache(
                 new CountingClient(Mono.error(new IllegalStateException("connection refused"))), 60_000L);
-        PureOAuthAuthenticationConverter converter = new PureOAuthAuthenticationConverter(
-                Set.of("esq-angular-pure-oauth"), cache, jwt -> Mono.empty());
+        AuthenticationConverter converter = new AuthenticationConverter(cache);
 
-        assertThatThrownBy(() -> converter.convert(token("esq-angular-pure-oauth", "mainadmin")).block(WAIT))
+        assertThatThrownBy(() -> converter.convert(token("esq-angular", "mainadmin")).block(WAIT))
                 .isInstanceOf(AuthenticationServiceException.class);
     }
 
     @Test
     @DisplayName("converter: an unknown login id stays a BadCredentialsException")
     void converter_unknownLogin() {
-        PureOAuthClaimsCache cache = new PureOAuthClaimsCache(
+        ClaimsCache cache = new ClaimsCache(
                 new CountingClient(Mono.error(new BadCredentialsException("none"))), 60_000L);
-        PureOAuthAuthenticationConverter converter = new PureOAuthAuthenticationConverter(
-                Set.of("esq-angular-pure-oauth"), cache, jwt -> Mono.empty());
+        AuthenticationConverter converter = new AuthenticationConverter(cache);
 
-        assertThatThrownBy(() -> converter.convert(token("esq-angular-pure-oauth", "nobody")).block(WAIT))
+        assertThatThrownBy(() -> converter.convert(token("esq-angular", "nobody")).block(WAIT))
                 .isInstanceOf(BadCredentialsException.class);
     }
 
@@ -251,7 +228,7 @@ class PureOAuthTest {
             seen.set(next);
             return Mono.empty();
         };
-        Mono<Void> run = new PureOAuthHeaderFilter().filter(exchange, chain);
+        Mono<Void> run = new HeaderFilter().filter(exchange, chain);
         if (context != null) {
             run = run.contextWrite(ReactiveSecurityContextHolder.withSecurityContext(context.map(c -> c)));
         }
@@ -277,8 +254,8 @@ class PureOAuthTest {
     }
 
     @Test
-    @DisplayName("header filter: a claims-mode caller's forged headers are stripped and none are set")
-    void headers_strippedForClaimsMode() {
+    @DisplayName("header filter: a caller with no claims on its authentication gets its forged headers stripped and none set")
+    void headers_strippedWithoutClaims() {
         JwtAuthenticationToken auth = new JwtAuthenticationToken(token("esq-angular", "mainadmin"));
         HttpHeaders out = passThrough(forgedRequest(), Mono.just(new SecurityContextImpl(auth)))
                 .getRequest().getHeaders();
@@ -287,9 +264,9 @@ class PureOAuthTest {
     }
 
     @Test
-    @DisplayName("header filter: a pure caller gets the gateway's own claims, the forged ones replaced")
-    void headers_setForPure() {
-        JwtAuthenticationToken auth = new JwtAuthenticationToken(token("esq-angular-pure-oauth", "mainadmin"));
+    @DisplayName("header filter: a signed-in caller gets the gateway's own claims, the forged ones replaced")
+    void headers_setFromClaims() {
+        JwtAuthenticationToken auth = new JwtAuthenticationToken(token("esq-angular", "mainadmin"));
         auth.setDetails(ADMIN);
         HttpHeaders out = passThrough(forgedRequest(), Mono.just(new SecurityContextImpl(auth)))
                 .getRequest().getHeaders();

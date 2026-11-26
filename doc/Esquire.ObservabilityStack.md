@@ -305,7 +305,7 @@ The four-layer measurement below is that embedded timing.
 
 Esquire captures four distinct but related metrics for every request, organized as outer/inner pairs at the gateway tier and the service tier:
 
--   **Gateway Outer Time (`X-Response-Time`)**: from receive-from-client to send-to-client. Includes Spring Security filter chain (JWT decode, Vanilla Token Relay broker call, Phantom Token Relay token-exchange, authorization), routing, the downstream service call, and response assembly. The full envelope of work the gateway does on the request.
+-   **Gateway Outer Time (`X-Response-Time`)**: from receive-from-client to send-to-client. Includes Spring Security filter chain (JWT decode and signature check, the claims lookup in keySmith on a cache miss, authorization), routing, the downstream service call, and response assembly. The full envelope of work the gateway does on the request.
 -   **Gateway Inner Time (`Esq-Gw-Inner-Time`)**: from sent-to-service to received-from-service. The gateway's measurement of the downstream call only. The delta `gw_outer - gw_inner` isolates the gateway's own overhead (auth + routing + response assembly).
 -   **Service Outer Time (`Esq-Srv-Outer-Time`)**: from receive-by-service to send-to-gateway. The service's measurement of its own full processing.
 -   **Service Inner Time (`Esq-Srv-Inner-Time`)**: umbrella of all inner-aspect costs at the service tier -- today equals JPA / DB query time; reserves the slot for future specifics like JMS publish wait, cache lookup, or external API calls via the extensible naming pattern `Esq-Srv-Inner-{X}-Time` (e.g., `Esq-Srv-Inner-DB-Time`, `Esq-Srv-Inner-JMS-Time`). The umbrella metric is always present; sub-aspects are added alongside it as the system grows.
@@ -315,7 +315,7 @@ Esquire captures four distinct but related metrics for every request, organized 
 The four headers come from two pairs of filters at two tiers. Each timer answers a slightly different question:
 ![Timing](media/timing.svg)
 
--   **`X-Response-Time` is set by an outer-tier WebFilter** at `HIGHEST_PRECEDENCE` so the timer starts **before** Spring Security runs. This means Vanilla Token Relay broker call, Phantom Token Relay token-exchange, JWT decode time, role-check time -- the full auth-layer cost -- is part of the gateway outer envelope, not buried as invisible pre-routing overhead.
+-   **`X-Response-Time` is set by an outer-tier WebFilter** at `HIGHEST_PRECEDENCE` so the timer starts **before** Spring Security runs. This means the JWT decode, the claims lookup on a cache miss, and the role check -- the full auth-layer cost -- is part of the gateway outer envelope, not buried as invisible pre-routing overhead.
 -   **`Esq-Gw-Inner-Time` is set by a Spring Cloud Gateway `GlobalFilter` at default order**. It runs inside the gateway's WebHandler, after Spring Security has approved the request. It captures only the routing + downstream-call window. The delta `outer - inner = gateway's own work` (auth + routing + response assembly).
 -   **`Esq-Srv-Outer-Time` and `Esq-Srv-Inner-Time`** are both set by the service-side `MdcFilter` in `services/common`. Outer = full servlet request lifecycle. Inner = umbrella of all "inside work" (today, JPA queries via repository AOP; extensible via `Esq-Srv-Inner-{X}-Time` for future aspects).
 
@@ -541,7 +541,7 @@ The stack above is best seen live. These are the three views that matter; how to
 |---|---|---|---|---|---|---|---|
 | Overview | 4 | | Postgres | 4 | | Business -- entity operations | 4 |
 | Logs + Traces | 2 | | KeyCloak | 4 | | Business -- money | 3 |
-| JVM | 3 | | Messaging bus | 7 | | Business -- identity + token relay | 4 |
+| JVM | 3 | | Messaging bus | 7 | | Business -- identity + OAuth claims | 6 |
 | Pool / DB / Logs | 3 | | Broker (ActiveMQ) | 6 | | Business -- cache, keep + permissions | 3 |
 | CPU | 2 | | Latency bands | 3 | | Resilience -- circuit breakers | 6 |
 | DB connection detail | 2 | | Bandwidth | 3 | | Capacity -- cores in use | 4 |

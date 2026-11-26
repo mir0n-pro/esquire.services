@@ -10,7 +10,7 @@
 # not referenced by a service is inert (a pod is built only when a service producer()/consumer()s a bus key).
 herald:
   messaging-bus:
-    # --- entity broadcast (topic): publishers post UE, consumers (bizTree / kcMaster) apply ---
+    # --- entity broadcast (topic): publishers post UE, consumers (bizTree) apply ---
     - bus-id: esquire.entity
       slots:
         - slot-id: entity
@@ -32,10 +32,10 @@ herald:
                 persistent: false
                 # enyMan runs both legs (publish + listen) on ONE shared connection, so the broker drops its OWN
                 # publications -- the moving instance reconciles only a PEER instance's create-during-move. Inert
-                # for pure consumers (bizTree / kcMaster publish nothing) and publish-only producers (no consumer).
+                # for pure consumers (bizTree publishes nothing) and publish-only producers (no consumer).
                 noLocal: true
-    # --- pure OAuth (lab), claims eviction (topic): keySmith / enyMan publish, every gateway replica removes the
-    #     user from its own claims cache. Built only on a stack in the pure mode. ---
+    # --- claims eviction (topic): keySmith / enyMan publish, every gateway replica removes the user from its
+    #     own claims cache ---
     - bus-id: esquire.claims
       slots:
         - slot-id: claims

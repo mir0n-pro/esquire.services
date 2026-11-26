@@ -1,5 +1,26 @@
 Esquire Backend common microservice classes
 
+11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
+
+11/24/2026 mir0n  v2.0.3 -- dead code out
+identity.IIdentityGateway
+  - v2.0.3 -- postMessage(RodEvent) out; the doc no longer names the moved-path command (op X) or the path
+    change number
+identity.AuthSyncRequest
+  - v2.0.3 -- the path and roles fields out, and out of toMap()
+messaging.ClaimsBusPublisher  (removed)
+  - the claims-bus publisher: evict() on the claims rod, nothing sent with the switch off
+dto.EsqNameValueSerializer  (removed)
+  - the List<EsqNameValue> JSON serializer
+
+11/23/2026 mir0n  v2.0.3 -- pure OAuth only: common
+security.JwtClaimsExtractionFilter
+  - v2.0.3 -- uid / rootPath / roles from the X-Esq-UID / X-Esq-Root-Path / X-Esq-Roles headers only; the
+    token's esq_uid / esq_rootpath / realm_access claims are not read; the roles header parse is
+    EsqRequestScope.rolesOf()
+service.EsqRequestScope
+  - v2.0.3 -- rolesOf(String): the roles out of the X-Esq-Roles header, split on commas and trimmed
+
 11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): the claims leave the token
 dto.access.EsqUserClaims  (new)
   - created (v2.0.2): the claims of one user -- loginId, uid, rootPath, roles, changeNo; compareTo orders two

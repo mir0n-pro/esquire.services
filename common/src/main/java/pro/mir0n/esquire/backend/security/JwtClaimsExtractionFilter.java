@@ -23,6 +23,9 @@
  * 11/17/2026 mir0n  v2.0.2 -- pure OAuth (lab): with no esq_uid in the token, uid / rootPath / roles come from
  *                   the X-Esq-UID / X-Esq-Root-Path / X-Esq-Roles headers the gateway set; claimsComplete()
  *                   checks the values taken
+ * 11/23/2026 mir0n  v2.0.3 -- uid / rootPath / roles from the X-Esq-UID / X-Esq-Root-Path / X-Esq-Roles headers
+ *                   only; the token's esq_uid / esq_rootpath / realm_access claims are not read; the roles
+ *                   header parse is EsqRequestScope.rolesOf()
  */
 
 package pro.mir0n.esquire.backend.security;
@@ -47,7 +50,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import pro.mir0n.esquire.backend.error.ProblemDetailMill;
 import pro.mir0n.esquire.backend.error.ProblemDetailWriter;
@@ -59,11 +61,12 @@ import pro.mir0n.esquire.common.EsqConstants;
  * Reads the caller's identity out of the bearer token and puts it where the service layer can use it: the
  * SecurityContext (roles), EsqContextHolder (uid / rootPath / correlationId / requestId) and MDC.
  *
- * <p>It does NOT authenticate. The token was verified at the gate -- signature, expiry and the four required
- * claims ({@code EsqClaimsValidator} on the gateway's decoder) -- and Esquire verifies once, at the boundary.
- * The claim check below is a SHAPE check: it refuses a token missing something the service needs, which is a
- * different question from whether the token is genuine. Re-verifying here would be the duplicate the boundary
- * rule exists to remove.
+ * <p>It does NOT authenticate. The token was verified at the gate -- signature, expiry and the login id
+ * ({@code EsqClaimsValidator} on the gateway's decoder) -- and Esquire verifies once, at the boundary. The token
+ * carries no Esquire claims: the gateway looks them up and sends them as the X-Esq-* headers. The claim check
+ * below is a SHAPE check: it refuses a request missing something the service needs, which is a different
+ * question from whether the token is genuine. Re-verifying here would be the duplicate the boundary rule exists
+ * to remove.
  */
 @Slf4j
 @Component
@@ -110,30 +113,21 @@ public class JwtClaimsExtractionFilter extends OncePerRequestFilter {
             Claims claims = jwtService.extractAllClaims(jwt);
             username = claims.getSubject();
 
-            // REJECT if username is missing or some required custom claim is missing
-            Map realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
-            roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
-            uid      = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-            rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-            //xxx: a pure OAuth token carries no Esquire claims -- the gateway sends them as headers, and strips
-            // any inbound copies, so a header here was set by the gateway
-            if (uid == null && request.getHeader(EsqConstants.X_ESQ_UID) != null) {
-                uid      = request.getHeader(EsqConstants.X_ESQ_UID);
-                rootPath = request.getHeader(EsqConstants.X_ESQ_ROOT_PATH);
-                roles    = rolesOf(request.getHeader(EsqConstants.X_ESQ_ROLES));
-            }
+            //xxx: the gateway strips every inbound copy of these headers, so a header here was set by the gateway
+            uid      = request.getHeader(EsqConstants.X_ESQ_UID);
+            rootPath = request.getHeader(EsqConstants.X_ESQ_ROOT_PATH);
+            roles    = EsqRequestScope.rolesOf(request.getHeader(EsqConstants.X_ESQ_ROLES));
 // todo: add validation of rootpath length > 1 & and has "."
             if (username == null
             || !EsqRequestScope.claimsComplete(uid, rootPath, roles)
             ) {
                 sendErrorResponse(request, response, "Missing required claims ");
-                // WHICH claim is absent, not the claim set -- the map is the token's payload, and this line
-                // reaches the log store like any other.
-                devLog.debug("Missing required claims: username={}, {}={}, {}={}, roles={}",
+                // WHICH claim is absent, not the values -- this line reaches the log store like any other.
+                devLog.debug("Missing required claims: username={}, {}={}, {}={}, {}={}",
                         username != null,
-                        EsqConstants.JWT_CLAIM_ENTITY_ID, uid != null,
-                        EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, rootPath != null,
-                        roles != null && !roles.isEmpty());
+                        EsqConstants.X_ESQ_UID, uid != null,
+                        EsqConstants.X_ESQ_ROOT_PATH, rootPath != null,
+                        EsqConstants.X_ESQ_ROLES, !roles.isEmpty());
                 return;
             }
 
@@ -168,16 +162,6 @@ public class JwtClaimsExtractionFilter extends OncePerRequestFilter {
             EsqRequestScope.unbind();
         }
 
-    }
-
-    private static List<String> rolesOf(String header) {
-        List<String> ret = new ArrayList<>();
-        if (header != null && !header.isBlank()) {
-            for (String role : header.split(",")) {
-                ret.add(role.trim());
-            }
-        }
-        return ret;
     }
 
     private void sendErrorResponse(HttpServletRequest request, HttpServletResponse response, String message) throws IOException {

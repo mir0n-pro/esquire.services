@@ -9,6 +9,8 @@
  * 08/12/2026 mir0n  created: the way into an identity provider -- start / stop, postRequest(RodEvent),
  *                   postMessage(RodEvent) for PATH broadcasts and setResultHandler(Consumer<RodEvent>); the
  *                   implementation is named in each process's wiring
+ * 11/24/2026 mir0n  v2.0.3 -- postMessage(RodEvent) out; the doc no longer names the moved-path command (op X)
+ *                   or the path change number
  */
 package pro.mir0n.esquire.backend.identity;
 
@@ -19,9 +21,9 @@ import java.util.function.Consumer;
 /**
  * The way into the identity provider, for a caller that is told nothing about what is on the other side.
  *
- * <p>One entry point. The event says everything the provider needs: {@code op} says what to do (C, U, D, or X
- * for a moved path), {@code body} carries the {@link AuthSyncRequest} fields, and the header already holds the
- * correlation id, the request id and the path change number. A caller posts and returns -- the work is queued
+ * <p>One entry point. The event says everything the provider needs: {@code op} says what to do (C, U or D),
+ * {@code body} carries the {@link AuthSyncRequest} fields, and the header already holds the correlation id and
+ * the request id. A caller posts and returns -- the work is queued
  * either way, and the caller's transaction is already committed by the time it calls.
  *
  * <p>The implementation decides how far the work travels. Over the bus the event is transmitted on the kc
@@ -57,23 +59,9 @@ public interface IIdentityGateway {
     void postRequest(RodEvent event);
 
     /**
-     * Hand over one PATH broadcast -- op {@code X}, a moved entity's new path -- as it arrived. That is the whole
-     * of what this arm takes: a caller relays the moves and nothing else. An implementation with no use for them
-     * skips, and one that has a use is handed only what it can use.
-     *
-     * <p>It exists because a broadcast reaches every copy of a process while a request reaches one. An
-     * implementation that has to hold something for a request it has not seen yet -- a moved path whose
-     * identity does not exist -- can only learn about it here.
-     *
-     * @param event  the path broadcast, unchanged
-     */
-    void postMessage(RodEvent event);
-
-    /**
      * Set what receives the answers. One handler per gateway; setting a second one replaces the first. A
      * gateway with no handler set reports its answers to the log. The answer is a {@code MSG_TYPE_RESPONSE}
-     * event on success and a {@code MSG_TYPE_REJECT} carrying the error on failure. A posted path (op X) is
-     * not answered.
+     * event on success and a {@code MSG_TYPE_REJECT} carrying the error on failure.
      *
      * @param handler  the answer sink
      */

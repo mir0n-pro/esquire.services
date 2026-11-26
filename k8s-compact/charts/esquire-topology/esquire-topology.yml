@@ -27,12 +27,12 @@ herald:
                 pubSubDomain: true
                 # enyMan runs both legs (publish + listen) on ONE shared connection, so the broker drops its OWN
                 # publications -- the moving instance reconciles only a PEER instance's create-during-move. Inert
-                # for pure consumers (bizTree / kcMaster publish nothing) and publish-only producers (no consumer).
+                # for pure consumers (bizTree publishes nothing) and publish-only producers (no consumer).
                 noLocal: true
                 # MUST agree with the broker (activemq.xml: persistent="false"). See the KeyCloak bus below.
                 persistent: false
-    # --- pure OAuth (lab), claims eviction (topic): keySmith / enyMan publish, every gateway replica removes the
-    #     user from its own claims cache. Built only on a stack in the pure mode. ---
+    # --- claims eviction (topic): Mesnie publishes, every gateWard replica removes the user from its own
+    #     claims cache ---
     - bus-id: esquire.claims
       slots:
         - slot-id: claims

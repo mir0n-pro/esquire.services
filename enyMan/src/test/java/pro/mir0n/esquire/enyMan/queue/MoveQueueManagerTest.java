@@ -16,7 +16,6 @@ import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.messaging.BusConstants;
-import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.messaging.IXRod;
 import pro.mir0n.messaging.xrod.impl.XRodDisabled;
@@ -25,7 +24,6 @@ import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
-import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 
 import java.util.Map;
 
@@ -67,7 +65,6 @@ class MoveQueueManagerTest {
     @Mock private TransactionTemplate txTemplate;
     @Mock private EntityManager em;
     @Mock private EntityBusAdapter publisher;
-    @Mock private IIdentityGateway identityGateway;
     @Mock private EntityPathLookup pathLookup;
 
     private MoveQueueManager manager;
@@ -86,8 +83,7 @@ class MoveQueueManagerTest {
     @BeforeEach
     void setUp() {
         manager = new MoveQueueManager(dictRepo, orgRepo, usrRepo, txTemplate, em,
-                publisher, identityGateway, pathLookup, new AuditBusBridge(noopRod()),
-                new ClaimsBusPublisher(false), 16, 0, 0);
+                publisher, pathLookup, new AuditBusBridge(noopRod()), 16, 0, 0);
         // Do not call manager.start() -- we want to invoke process() directly without
         // racing the daemon worker thread. The rig is constructed but unstarted.
     }
@@ -154,8 +150,7 @@ class MoveQueueManagerTest {
         // A manager with a 500ms grace: after a move drains, inMove() must stay true within the window so a
         // CREATE landing just behind the move is still caught (the grace=0 manager reads false at this same point).
         MoveQueueManager graced = new MoveQueueManager(dictRepo, orgRepo, usrRepo, txTemplate, em,
-                publisher, identityGateway, pathLookup, new AuditBusBridge(noopRod()),
-                new ClaimsBusPublisher(false), 16, 0, 500);
+                publisher, pathLookup, new AuditBusBridge(noopRod()), 16, 0, 500);
         graced.start();
         try {
             assertThat(graced.inMove()).as("nothing moved yet -> grace not open").isFalse();

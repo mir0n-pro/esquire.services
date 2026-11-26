@@ -40,7 +40,7 @@
     "x": 0,
     "y": 1
    },
-   "description": "Every component of the system, live. Each box carries a LIVE NUMBER, not just a colour -- a traffic light tells you a thing is RUNNING, not that it has stopped doing any WORK, which is the failure that actually happens. CLICK A BOX for its detail. GREEN = reporting, RED = down, GREY = no data (which here almost always means observability is OFF -- ESQ_OBSERVABILITY_ENABLED, off by default -- not that the component is broken). THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, where a service publishes to a destination and walks away, and who is listening is not its business. THERE ARE TWO BARS, not one, because there are TWO BUSES -- and which services share a medium (and which never meet) is the whole thing this picture is for: auKeep hears everyone and answers no one; gateWard is on the entity lane alone. The IAM request-response bus is GONE: kcMaster runs inside Mesnie, so identity is a method call, not a message. The observability stack is deliberately NOT on this board: the viewer is not the system, and six boxes of tooling watching the tooling would drown the question this board exists to answer.",
+   "description": "Every component of the system, live. Each box carries a LIVE NUMBER, not just a colour -- a traffic light tells you a thing is RUNNING, not that it has stopped doing any WORK, which is the failure that actually happens. CLICK A BOX for its detail. GREEN = reporting, RED = down, GREY = no data (which here almost always means observability is OFF -- ESQ_OBSERVABILITY_ENABLED, off by default -- not that the component is broken). THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, where a service publishes to a destination and walks away, and who is listening is not its business. THERE ARE FOUR BARS, not one, because there are FOUR BUSES -- and which services share a medium (and which never meet) is the whole thing this picture is for: auKeep hears everyone and answers no one; gateWard hears the entity and claims lanes and asks on the biz lane. The IAM request-response bus is GONE: kcMaster runs inside Mesnie, so identity is a method call, not a message. The observability stack is deliberately NOT on this board: the viewer is not the system, and six boxes of tooling watching the tooling would drown the question this board exists to answer.",
    "targets": [
     {
      "refId": "h0",
@@ -1637,7 +1637,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 503,
+        "left": 533,
         "top": 596,
         "width": 140,
         "height": 80,
@@ -1664,6 +1664,25 @@
          },
          "color": {
           "fixed": "#C9A0DC"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "none"
+        },
+        {
+         "targetName": "bus:esquire.claims",
+         "path": "straight",
+         "source": {
+          "x": 0.0,
+          "y": 1
+         },
+         "target": {
+          "x": 0,
+          "y": -1
+         },
+         "color": {
+          "fixed": "#7FC4BE"
          },
          "size": {
           "fixed": 2
@@ -1730,7 +1749,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 596,
         "width": 140,
         "height": 80,
@@ -2019,15 +2038,34 @@
        ],
        "connections": [
         {
+         "targetName": "bus:esquire.claims",
+         "path": "straight",
+         "source": {
+          "x": 1,
+          "y": 0.22000000000000003
+         },
+         "target": {
+          "x": -1,
+          "y": -0.50568
+         },
+         "color": {
+          "fixed": "#7FC4BE"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
+        {
          "targetName": "bus:esquire.entity",
          "path": "straight",
          "source": {
           "x": 1,
-          "y": -0.0
+          "y": -0.21999999999999997
          },
          "target": {
           "x": -1,
-          "y": -0.584
+          "y": -0.6623199999999999
          },
          "color": {
           "fixed": "#9DC08B"
@@ -2116,7 +2154,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 773,
+        "left": 803,
         "top": 200,
         "width": 140,
         "height": 150,
@@ -2170,7 +2208,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 180,
         "width": 140,
         "height": 150,
@@ -2189,11 +2227,11 @@
          "path": "straight",
          "source": {
           "x": -1,
-          "y": 0.22000000000000003
+          "y": 0.33
          },
          "target": {
           "x": 1,
-          "y": 0.146
+          "y": 0.179
          },
          "color": {
           "fixed": "#C9A0DC"
@@ -2204,15 +2242,34 @@
          "direction": "both"
         },
         {
+         "targetName": "bus:esquire.claims",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.0
+         },
+         "target": {
+          "x": 1,
+          "y": 0.08
+         },
+         "color": {
+          "fixed": "#7FC4BE"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "reverse"
+        },
+        {
          "targetName": "bus:esquire.entity",
          "path": "straight",
          "source": {
           "x": -1,
-          "y": -0.21999999999999997
+          "y": -0.32999999999999996
          },
          "target": {
           "x": 1,
-          "y": 0.014
+          "y": -0.019
          },
          "color": {
           "fixed": "#9DC08B"
@@ -2320,7 +2377,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 430,
         "width": 140,
         "height": 80,
@@ -2374,7 +2431,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1043,
+        "left": 1073,
         "top": 200,
         "width": 140,
         "height": 80,
@@ -2428,7 +2485,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 947,
+        "left": 977,
         "top": 180,
         "width": 140,
         "height": 80,
@@ -2666,7 +2723,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 508,
+        "left": 538,
         "top": 600,
         "width": 28,
         "height": 28,
@@ -2706,7 +2763,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 503,
+        "left": 533,
         "top": 618,
         "width": 140,
         "height": 19,
@@ -2746,7 +2803,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 503,
+        "left": 533,
         "top": 637,
         "width": 140,
         "height": 19,
@@ -2786,7 +2843,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 503,
+        "left": 533,
         "top": 656,
         "width": 140,
         "height": 19,
@@ -2826,7 +2883,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 618,
         "width": 140,
         "height": 19,
@@ -2866,7 +2923,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 637,
         "width": 140,
         "height": 19,
@@ -2906,7 +2963,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 656,
         "width": 140,
         "height": 19,
@@ -3914,7 +3971,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 682,
+        "left": 712,
         "top": 184,
         "width": 28,
         "height": 28,
@@ -3954,7 +4011,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 205,
         "width": 140,
         "height": 19,
@@ -3994,7 +4051,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 224,
         "width": 140,
         "height": 19,
@@ -4034,7 +4091,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 243,
         "width": 140,
         "height": 19,
@@ -4073,7 +4130,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 817,
+        "left": 847,
         "top": 202,
         "width": 96,
         "height": 18,
@@ -4113,7 +4170,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 817,
+        "left": 847,
         "top": 222,
         "width": 96,
         "height": 19,
@@ -4153,7 +4210,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 817,
+        "left": 847,
         "top": 241,
         "width": 96,
         "height": 19,
@@ -4193,7 +4250,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 817,
+        "left": 847,
         "top": 260,
         "width": 96,
         "height": 19,
@@ -4232,7 +4289,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 689.0,
+        "left": 719.0,
         "top": 268,
         "width": 116,
         "height": 22,
@@ -4268,7 +4325,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 693.0,
+        "left": 723.0,
         "top": 271.0,
         "width": 16,
         "height": 16,
@@ -4307,7 +4364,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 711.0,
+        "left": 741.0,
         "top": 268,
         "width": 90,
         "height": 22,
@@ -4346,7 +4403,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 689.0,
+        "left": 719.0,
         "top": 296,
         "width": 116,
         "height": 22,
@@ -4382,7 +4439,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 693.0,
+        "left": 723.0,
         "top": 299.0,
         "width": 16,
         "height": 16,
@@ -4421,7 +4478,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 711.0,
+        "left": 741.0,
         "top": 296,
         "width": 90,
         "height": 22,
@@ -4457,7 +4514,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 682,
+        "left": 712,
         "top": 434,
         "width": 28,
         "height": 28,
@@ -4497,7 +4554,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 452,
         "width": 140,
         "height": 19,
@@ -4537,7 +4594,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 471,
         "width": 140,
         "height": 19,
@@ -4577,7 +4634,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 677,
+        "left": 707,
         "top": 490,
         "width": 140,
         "height": 19,
@@ -4613,7 +4670,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 952,
+        "left": 982,
         "top": 184,
         "width": 28,
         "height": 28,
@@ -4653,7 +4710,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 947,
+        "left": 977,
         "top": 202,
         "width": 140,
         "height": 19,
@@ -4693,7 +4750,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 947,
+        "left": 977,
         "top": 221,
         "width": 140,
         "height": 19,
@@ -4733,7 +4790,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 947,
+        "left": 977,
         "top": 240,
         "width": 140,
         "height": 19,
@@ -4772,7 +4829,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1087,
+        "left": 1117,
         "top": 202,
         "width": 96,
         "height": 18,
@@ -4812,7 +4869,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1087,
+        "left": 1117,
         "top": 222,
         "width": 96,
         "height": 19,
@@ -4852,7 +4909,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1087,
+        "left": 1117,
         "top": 241,
         "width": 96,
         "height": 19,
@@ -4892,7 +4949,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1087,
+        "left": 1117,
         "top": 260,
         "width": 96,
         "height": 19,
@@ -4979,6 +5036,84 @@
        "connections": []
       },
       {
+       "name": "bus:esquire.claims",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#7FC4BE"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 580,
+        "top": 25,
+        "width": 46,
+        "height": 500,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "buslabel:esquire.claims",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Claim Broadcast Bus    (esquire.claims)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 473.0,
+        "top": 264.0,
+        "width": 260,
+        "height": 22,
+        "rotation": -90
+       },
+       "connections": []
+      },
+      {
        "name": "bus:esquire.entity",
        "type": "rectangle",
        "background": {
@@ -5009,7 +5144,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 580,
+        "left": 640,
         "top": 25,
         "width": 46,
         "height": 500,
@@ -5048,7 +5183,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 473.0,
+        "left": 533.0,
         "top": 264.0,
         "width": 260,
         "height": 22,
@@ -5594,7 +5729,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 831,
+        "left": 861,
         "top": 612.0,
         "width": 330,
         "height": 16,
@@ -5633,7 +5768,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 831,
+        "left": 861,
         "top": 628.0,
         "width": 330,
         "height": 16,
@@ -5672,7 +5807,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 831,
+        "left": 861,
         "top": 644.0,
         "width": 330,
         "height": 16,
@@ -5759,7 +5894,7 @@
      "legendFormat": "recv <- {{bus_id}}"
     }
    ],
-   "description": "The two lanes above, as traffic. audit-c and esquire.entity are SEPARATE MEDIA with different participants -- which is what the two lanes in the picture say, and what a single bar (or a mesh of arrows) would hide. There is no esquire.kc lane on this profile: identity is served inside Mesnie, so it never reaches the wire."
+   "description": "The lanes above, as traffic. audit-c, esquire.biz, esquire.claims and esquire.entity are SEPARATE MEDIA with different participants -- which is what the lanes in the picture say, and what a single bar (or a mesh of arrows) would hide. There is no esquire.kc lane on this profile: identity is served inside Mesnie, so it never reaches the wire."
   },
   {
    "type": "timeseries",

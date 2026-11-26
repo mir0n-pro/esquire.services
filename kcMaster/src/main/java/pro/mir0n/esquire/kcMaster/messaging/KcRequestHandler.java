@@ -23,6 +23,9 @@
  *                   messaging path manages
  * 11/21/2026 mir0n  v2.0.2 -- with pure OAuth on, no root path attribute and no realm roles reach KeyCloak (null
  *                   roles leave the realm roles as they are); the constructor written out in place of Lombok's
+ * 11/23/2026 mir0n  v2.0.3 -- pure OAuth only: the pureOAuth constructor argument out; a create writes esq_uid
+ *                   only; realmRoles() and the UPDATE_PATH command (handleUpdatePath()) out
+ * 11/25/2026 mir0n  v2.0.3 -- a create writes no attribute (esq_uid out); the attributes arguments out
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -34,10 +37,6 @@ import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 /**
  * Dispatches a deserialized URQ to the appropriate KC identity operation.
  * Returns success/failure to caller; caller (KcRequestConsumer) publishes URS.
@@ -46,12 +45,9 @@ import java.util.Map;
 public class KcRequestHandler {
 
     private final IKcIdentityService kcIdentityService;
-    //xxx: pure OAuth (lab) -- the claims stay in Esq2025: no root path and no roles reach KeyCloak
-    private final boolean pureOAuth;
 
-    public KcRequestHandler(IKcIdentityService kcIdentityService, boolean pureOAuth) {
+    public KcRequestHandler(IKcIdentityService kcIdentityService) {
         this.kcIdentityService = kcIdentityService;
-        this.pureOAuth = pureOAuth;
     }
 
     public void handle(String command, AuthSyncRequest req, String correlationId, String requestId) {
@@ -84,8 +80,6 @@ public class KcRequestHandler {
                     handleUpdate(req, correlationId, requestId);
                 case BusConstants.EVENT_DELETE ->
                     handleDelete(req, correlationId, requestId);
-                case BusConstants.EVENT_UPDATE_PATH ->
-                    handleUpdatePath(req, correlationId, requestId);
                 default ->
                     throw new IllegalArgumentException("Unknown command: " + command);
             }
@@ -98,12 +92,6 @@ public class KcRequestHandler {
     }
 
     private void handleCreate(AuthSyncRequest req, String correlationId, String requestId) {
-        Map<String, List<String>> attributes = new java.util.HashMap<>();
-        attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ID,       Collections.singletonList(req.getId()));
-        if (!pureOAuth) {
-            attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(req.getPath()));
-        }
-
         kcIdentityService.createUser(
                 req.getLoginId(),
                 req.getEmail(),
@@ -111,8 +99,6 @@ public class KcRequestHandler {
                 true,         // enabled
                 true,         // forcePasswordChange -- must change on first login
                 false,        // requireTotp -- N on initial connect
-                realmRoles(req),
-                attributes,
                 correlationId,
                 requestId
         );
@@ -123,7 +109,6 @@ public class KcRequestHandler {
         Boolean requireTotp = "g".equals(tfaMethod) ? Boolean.TRUE : null;
         Boolean removeTotp  = "n".equals(tfaMethod) ? Boolean.TRUE : null;
 
-        // NOTE: esq_uid (JWT_CLAIM_ENTITY_ID) is set at creation only -- never updated
         kcIdentityService.updateUserAuthState(
                 req.getLoginId(),
                 req.getNewLoginId(),
@@ -131,27 +116,12 @@ public class KcRequestHandler {
                 "Y".equals(req.getPwdChangeForced()),
                 requireTotp,
                 removeTotp,
-                realmRoles(req),
-                null,   // no extra attributes on update
                 correlationId,
                 requestId
         );
     }
 
-    //xxx: null leaves the realm roles as they are; an empty list removes them all
-    private List<String> realmRoles(AuthSyncRequest req) {
-        List<String> ret = null;
-        if (!pureOAuth) {
-            ret = req.getRoles() != null ? req.getRoles() : Collections.emptyList();
-        }
-        return ret;
-    }
-
     private void handleDelete(AuthSyncRequest req, String correlationId, String requestId) {
         kcIdentityService.deleteUser(req.getLoginId(), correlationId, requestId);
-    }
-
-    private void handleUpdatePath(AuthSyncRequest req, String correlationId, String requestId) {
-        kcIdentityService.updateEntityPath(req.getId(), req.getPath(), correlationId, requestId);
     }
 }

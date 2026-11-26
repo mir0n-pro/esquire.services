@@ -1,5 +1,42 @@
 Esquire kcMaster Microservice
 
+11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
+messaging.KcRequestHandler
+  - v2.0.3 -- a create writes no attribute (esq_uid out); the attributes arguments out
+service.IKcIdentityService
+  - v2.0.3 -- createUser() and updateUserAuthState() lose attributes
+service.impl.KcIdentityService
+  - v2.0.3 -- createUser() and updateUserAuthState() lose attributes: the attribute set on a create and the
+    merge on an update out
+
+11/24/2026 mir0n  v2.0.3 -- dead code out
+identity.KcIdentityGateway
+  - v2.0.3 -- the empty postMessage() out
+
+11/23/2026 mir0n  v2.0.3 -- pure OAuth only: kcMaster
+identity.KcIdentityGateway
+  - v2.0.3 -- pure OAuth only: the path park (ExpiringCache, kcmaster.path-buffer.*), serveBroadcast() and
+    kcUserExists() out; serve() handles a request only; postMessage() empty; esq.pure-oauth no longer read;
+    KcRequestHandler and KcIdentityService built without the flag and the park
+messaging.KcRequestHandler
+  - v2.0.3 -- pure OAuth only: the pureOAuth constructor argument out; a create writes esq_uid only;
+    realmRoles() and the UPDATE_PATH command (handleUpdatePath()) out
+service.IKcIdentityService
+  - v2.0.3 -- createUser() and updateUserAuthState() lose realmRoles; updateEntityPath() out
+service.impl.KcIdentityService
+  - v2.0.3 -- pure OAuth only: the path park field and the race-8c flush (applyBufferedPath()) out of
+    createUser(); the realm role sync (updateRealmRoles(), assignRealmRoles()) and updateEntityPath() out
+KcMasterApplication
+  - v2.0.3 -- the kc bus only: the entity bus is no longer built
+KcMasterConfig
+  - v2.0.3 -- the identityGateway() doc: one bus adapter, no path park, no kcmaster.path-buffer.*
+messaging.EntityBusAdapter  (removed)
+  - the entity-bus receive leg into the gateway's safety net
+messaging.ParkedPath  (removed)
+  - the parked path and its change number
+resources/application.yml
+  - esq.pure-oauth (ESQ_PURE_OAUTH), kcmaster.path-buffer.* and the entity-bus leg out
+
 11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): no root path and no roles in KeyCloak
 identity.KcIdentityGateway
   - esq.pure-oauth read and logged; on, a moved path is not parked; storeIfGreater -> putIfGreater

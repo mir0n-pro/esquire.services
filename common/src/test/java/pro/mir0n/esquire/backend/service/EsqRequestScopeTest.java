@@ -33,6 +33,14 @@ class EsqRequestScopeTest {
     }
 
     @Test
+    @DisplayName("the roles header is split on commas and trimmed; absent or blank gives no roles")
+    void rolesOf() {
+        assertThat(EsqRequestScope.rolesOf("SYSADMIN, TREE,teller")).containsExactly("SYSADMIN", "TREE", "teller");
+        assertThat(EsqRequestScope.rolesOf(null)).isEmpty();
+        assertThat(EsqRequestScope.rolesOf("  ")).isEmpty();
+    }
+
+    @Test
     @DisplayName("bind sets the context with its MDC ids and uid; unbind clears the context and the uid")
     void bindAndUnbind() {
         EsqRequestContext ctx = new EsqRequestContext("c1", "r1", "u1", "1.2.", List.of("teller"));

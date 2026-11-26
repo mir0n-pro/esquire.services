@@ -27,6 +27,10 @@
  *                   declared here with initMethod start / destroyMethod stop -- one gateway per PROCESS
  * 11/18/2026 mir0n  v2.0.2 -- the ClaimsBusPublisher bean on esq.pure-oauth; the claims bus is built while
  *                   esq.pure-oauth is on
+ * 11/23/2026 mir0n  v2.0.3 -- the ClaimsBusPublisher bean out; the claims bus is always built beside the entity,
+ *                   kc and audit buses
+ * 11/23/2026 mir0n  v2.0.3 -- the kc leg out: the IIdentityGateway bean (KcBusAdapter) out; the buses are
+ *                   entity, audit and claims
  */
 
 package pro.mir0n.esquire.enyMan;
@@ -40,11 +44,7 @@ import org.springframework.core.Ordered;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.beans.factory.annotation.Value;
-import pro.mir0n.esquire.backend.identity.IIdentityGateway;
-import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
-import pro.mir0n.esquire.enyMan.messaging.KcBusAdapter;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.SpringBootConfiguration;
@@ -63,9 +63,8 @@ import pro.mir0n.messaging.MessagingBus;
 
 // @SpringBootConfiguration + @EnableAutoConfiguration is @SpringBootApplication without its implicit
 // @ComponentScan: the scan comes from EnyManConfig, which is the one place enyMan's packages are named.
-// The roles repository, the audit bridge and the identity gateway are one-per-PROCESS, so the process
-// declares them -- not the service config: under Mesnie, enyMan and keySmith share all three, and there the
-// gateway is the in-process one.
+// The roles repository and the audit bridge are one-per-PROCESS, so the process declares them -- not the
+// service config: under Mesnie, enyMan and keySmith share both.
 @Slf4j
 @SpringBootConfiguration
 @EnableAutoConfiguration
@@ -83,18 +82,6 @@ public class EnyManApplication {
         app.addListeners(new MessagingBusLifecycleRegistrar());
 
         app.run(args);
-    }
-
-    /** enyMan's way to the identity provider: kcMaster is another service here, so the call goes over the
-     *  kc bus. The move queue is handed the gateway and never learns which one it got. */
-    @Bean(initMethod = "start", destroyMethod = "stop")
-    public IIdentityGateway identityGateway() {
-        return new KcBusAdapter();
-    }
-
-    @Bean(initMethod = "start")
-    public ClaimsBusPublisher claimsBus(@Value("${" + EsqConstants.PROP_PURE_OAUTH + ":false}") boolean pureOAuth) {
-        return new ClaimsBusPublisher(pureOAuth);
     }
 
     public static class EnyManApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {
@@ -144,11 +131,7 @@ public class EnyManApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                String[] keys = {EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_KC, EsqConstants.BUS_KEY_AUDIT};
-                if (e.getEnvironment().getProperty(EsqConstants.PROP_PURE_OAUTH, Boolean.class, Boolean.FALSE)) {
-                    keys = new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_KC, EsqConstants.BUS_KEY_AUDIT,
-                            EsqConstants.BUS_KEY_CLAIMS};
-                }
+                String[] keys = {EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_AUDIT, EsqConstants.BUS_KEY_CLAIMS};
                 bus.init(e.getEnvironment(), keys);
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {

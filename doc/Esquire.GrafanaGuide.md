@@ -271,14 +271,16 @@ deliberately not split, is in [`Esquire.ObservabilityStack.md`](Esquire.Observab
 | Transaction latency (avg ms by type) | how long each kind takes inside pacMan. A transfer is legitimately dearer (two legs + a rate lookup); watch for a type getting slower over time. |
 | FX applied + accounts closed | a non-null conversion rate is an FX application (the cross-currency leg of a transfer); closures are counted only once a delete has fully succeeded. |
 
-### Business -- identity + token relay
+### Business -- identity + OAuth claims
 
 | panel | how to read it |
 |---|---|
-| KeyCloak identity sync (by op + outcome) | whether Esquire and KeyCloak still agree about who exists. A non-zero error line means the two have drifted. |
+| Access profile reads + saves (by op + outcome) | keySmith's work on access profiles -- the self-reads at sign-in, the admin reads, and the saves. |
+| Identity commands asked for (by command) | what keySmith ASKED kcMaster to do -- create, update, delete. Set it against the sync panel next to it: a gap between asked and done is a sync that never landed. |
+| KeyCloak identity sync (by op + outcome) | what kcMaster DID in KeyCloak, by outcome. A non-zero error line means Esquire and KeyCloak have drifted about who can sign in; `hauberk kc-reconcile` names who. |
 | KeyCloak sync latency (avg ms) | the sync's wall time (dominated by the KeyCloak round-trip). |
-| Token relay -- cache hit rate | **the most load-bearing number here.** A hit serves the request without touching KeyCloak; a miss is a live `/token` round-trip on the hot path. |
-| Token relay -- KC /token acquire (avg ms) | what a cache **miss** costs. Multiply by (100 - hit rate) to get what the relay actually costs you. |
+| OAuth claims -- gateway cache hit rate | **the most load-bearing number here.** A hit serves the request from the gateway's claims cache; a miss asks keySmith. An eviction after a save or a move shows as a short dip. |
+| OAuth claims -- keySmith query (avg ms) | what a cache **miss** costs. Multiply by (100 - hit rate) to get what the claims lookup actually costs you. |
 
 ### Business -- cache, keep + permissions
 

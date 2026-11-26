@@ -127,9 +127,6 @@ services:
       # since KC_METRICS_ENABLED is a boot-time option).
       KC_METRICS_ENABLED: "${ESQ_OBSERVABILITY_ENABLED:-false}"
       KC_HTTP_RELATIVE_PATH: /kc-auth
-      # Phantom Token Relay: RFC 8693 token-exchange (KC 26.4 preview).
-      # admin-fine-grained-authz is enabled by default in KC 26 -- no flag needed.
-      KC_FEATURES: token-exchange
     volumes:
       - ./data/keycloak:/opt/keycloak/data
       - ../keycloak/import/esquire.json:/opt/keycloak/data/import/realm.json
@@ -152,8 +149,6 @@ services:
       - "3003:3003"
     environment:
       - MESNIE_PORT=3003
-      # Pure OAuth (lab): on = no root path / roles to KeyCloak, and a change evicts the gateway claims cache
-      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-false}
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
@@ -196,17 +191,11 @@ services:
       # enyMan's move queue -- bound by the literal "enyman." prefix, so the name stays as the code reads it.
       - ENYMAN_MOVE_QUEUE_CAPACITY=${ENYMAN_MOVE_QUEUE_CAPACITY:-16384}
       - ENYMAN_VALIDATE_CREATE_DURING_MOVE=${ENYMAN_VALIDATE_CREATE_DURING_MOVE:-true}
-      # TEST race-8c repro ONLY: hold between the committed path read and the identity post, so a move can
-      # land in that window. Default 0 = disabled; never set outside a repro run.
-      - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
       # KeyCloak -- read by the identity gateway itself, by kcMaster's own property names.
       - KC_BASE_URL=http://keycloak:8080/kc-auth
       - KC_REALM=esquire
       - KC_ADMIN_CLIENT_ID=esq-kcMaster
       - KC_ADMIN_CLIENT_SECRET=${KCMASTER_ADMIN_SECRET:-MHgq0Nu69u2uJ2johaK1wxQLMdakELXN}
-      # The race-8c path park. Nothing fills it on one copy; across copies the entity broadcast does.
-      - KCMASTER_PATH_BUFFER_TTL_MS=${KCMASTER_PATH_BUFFER_TTL_MS:-10000}
-      - KCMASTER_PATH_BUFFER_PRUNE_MS=30000
       # Audit -- the BUS (audit-c), drained by auKeep. The compact profile composes the REQUEST path; the audit
       # trail keeps its own sink, so the log rows are written by a process that is not on the request path at all.
       - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
@@ -435,18 +424,11 @@ services:
       - KEYCLOAK_PORT=8081
       - KEYCLOAK_PATH=/kc-auth
       - KEYCLOAK_REALM=esquire
-      - KEYCLOAK_CLIENT_ID=esq-angular
       - CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:3000
       - GW_SERVICE_METRICS_ENABLED=true
-      - KC_EXCHANGE_BASE_URL=http://host.docker.internal:8081/kc-auth
-      - ESQ_GW_VANILLA_CLIENTS=esq-hauberk-S
-      - ESQ_GW_PHANTOM_CLIENTS=esq-hauberk-M
-      - ESQ_GW_EXCHANGE_CLIENT_ID=esq-gw-exchange
-      - ESQ_GW_EXCHANGE_CLIENT_SECRET=esq-gw-exchange-dev-secret-rotate-in-prod
-      # Pure OAuth (lab) -- the two pure clients' tokens carry no Esquire claims; gateWard asks keySmith
-      # in mesnie for them (KEYSMITH_HOST/KEYSMITH_PORT above make the claims URI).
-      - ESQ_GW_PURE_OAUTH_CLIENTS=esq-angular-pure-oauth,esq-hauberk-P
-      - ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS=${ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS:-60000}
+      # OAuth -- the token carries the login id only; gateWard asks keySmith in mesnie for the Esquire
+      # claims (KEYSMITH_HOST/KEYSMITH_PORT above make the claims URI).
+      - ESQ_GW_OAUTH_CACHE_IDLE_MS=${ESQ_GW_OAUTH_CACHE_IDLE_MS:-60000}
       # --- the ward: the cache this process now holds, and the database it fills itself from ---
       - DB_BIZTREE_VENDOR=${DB_BIZTREE_VENDOR:-dev-postgres}
       - DB_BIZTREE_PORT=${DB_BIZTREE_PORT:-5432}

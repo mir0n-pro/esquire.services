@@ -17,13 +17,12 @@ import org.springframework.mock.env.MockEnvironment;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * What the two KeyCloak clients are handed.
+ * What kcMaster's KeyCloak admin client is handed.
  * <p>
- * Neither client's deadline can be right if the number reaching its builder is wrong, and this is where that
- * number is decided -- once, for kcMaster's admin client under {@code keycloak.admin} and for the gate's relay
- * client under {@code keycloak.exchange}. That the builders then HONOUR what they are given is the libraries'
- * contract, measured by hand against a black-holed address rather than pinned here: a connect-deadline test
- * needs a network that swallows a SYN, which is not a thing a build can rely on.
+ * The client's deadline cannot be right if the number reaching its builder is wrong, and this is where that
+ * number is decided -- once, under {@code keycloak.admin}. That the builder then HONOURS what it is given is the
+ * library's contract, measured by hand against a black-holed address rather than pinned here: a connect-deadline
+ * test needs a network that swallows a SYN, which is not a thing a build can rely on.
  */
 class KcConnectionSettingsTest {
 
@@ -117,24 +116,5 @@ class KcConnectionSettingsTest {
 
         assertThat(settings.getClientSecret()).isEmpty();
         assertThat(new KcConnectionSettings("http://x", "r", "c", null, 1, 2).getClientSecret()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("the prefix picks the connection -- two blocks, one reader")
-    void thePrefixChoosesTheConnection() {
-        MockEnvironment env = new MockEnvironment();
-        env.setProperty("keycloak.admin.base-url", "http://keycloak:8080/kc-auth");
-        env.setProperty("keycloak.admin.realm", "esquire");
-        env.setProperty("keycloak.admin.client-id", "esq-kcMaster");
-        env.setProperty("keycloak.exchange.base-url", "https://esquire.mir0n.pro/kc-auth");
-        env.setProperty("keycloak.exchange.realm", "esquire");
-        env.setProperty("keycloak.exchange.client-id", "esq-gw-exchange");
-
-        KcConnectionSettings admin    = KcConnectionSettings.from(env, "keycloak.admin");
-        KcConnectionSettings exchange = KcConnectionSettings.from(env, "keycloak.exchange");
-
-        assertThat(admin.getClientId()).isEqualTo("esq-kcMaster");
-        assertThat(exchange.getClientId()).isEqualTo("esq-gw-exchange");
-        assertThat(admin.getBaseUrl()).isNotEqualTo(exchange.getBaseUrl());
     }
 }

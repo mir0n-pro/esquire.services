@@ -11,6 +11,7 @@
  * 10/13/2026 mir0n  v2.0.0 -- moved into services2/hauberk, the Esquire half of the harness: the
  *                   generic machinery is Armoury's armoury-hauberk, this project is the Esquire
  *                   routines over it
+ * 11/24/2026 mir0n  v2.0.3 -- javadoc: an orphan comes from a lost sync request, not from race-8c
  */
 package pro.mir0n.esquire.hauberk.simulations;
 
@@ -26,11 +27,10 @@ import static io.gatling.javaapi.core.CoreDsl.*;
 /**
  * Standalone teardown for the KC side of the hauberk playground.
  *
- * After a race-8c run (RaceMoveCreateKc), KC may be left with hauberk-* users
- * whose DB counterparts have been deleted by the standard CleanHouse run. The
- * /esq-cmd-del DELETE flow does best-effort KC removal via kcMaster, but the
- * race-8c silent-skip means kcMaster may have missed the original CREATE URQ
- * for a user, leaving an orphan with no DB row to delete-from.
+ * After a load run, KC may be left with hauberk-* users whose DB counterparts
+ * have been deleted by the standard CleanHouse run. The /esq-cmd-del DELETE
+ * flow does best-effort KC removal via kcMaster, and a lost sync request
+ * leaves an orphan with no DB row to delete-from.
  *
  * This sim authenticates with the KC master-realm bootstrap admin
  * (hauberk.properties: kc.admin.user / kc.admin.password) and walks the

@@ -8,9 +8,10 @@
  *  History:
  * 11/17/2026 mir0n  created (v2.0.2): pure OAuth (lab) -- strips inbound X-Esq-UID / X-Esq-Root-Path /
  *                   X-Esq-Roles for every caller, and sets them from the claims on the authentication's details
+ * 11/22/2026 mir0n  v2.0.3 -- lab.pureoauth.PureOAuthHeaderFilter -> oauth.HeaderFilter
  */
 
-package pro.mir0n.esquire.gateway.lab.pureoauth;
+package pro.mir0n.esquire.gateway.oauth;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
@@ -23,13 +24,13 @@ import pro.mir0n.esquire.backend.dto.access.EsqUserClaims;
 import pro.mir0n.esquire.common.EsqConstants;
 import reactor.core.publisher.Mono;
 
-public class PureOAuthHeaderFilter implements WebFilter {
+public class HeaderFilter implements WebFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         //xxx: inbound claim headers are stripped for EVERY caller -- the services trust them as the gateway's
         ServerWebExchange stripped = exchange.mutate()
-                .request(request -> request.headers(PureOAuthHeaderFilter::strip))
+                .request(request -> request.headers(HeaderFilter::strip))
                 .build();
         return ReactiveSecurityContextHolder.getContext()
                 .map(context -> withClaims(stripped, context))

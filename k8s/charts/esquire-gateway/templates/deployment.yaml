@@ -63,13 +63,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-          {{- if .Values.tokenRelay.phantom.exchangeClientSecret }}
-            - name: ESQ_GW_EXCHANGE_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-gateway-secret
-                  key: exchange-client-secret
-          {{- end }}
           # The three probes address the health GROUPS, not the aggregate: readiness may depool the pod, but only
           # liveness may kill it. Pointing both at /actuator/health made any DOWN indicator a restart -- there is
           # no "not ready but alive" state on an aggregate. Same shape as every other service.

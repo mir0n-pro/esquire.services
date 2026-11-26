@@ -1,5 +1,12 @@
 Esquire Mesnie Microservice
 
+11/23/2026 mir0n  v2.0.3 -- pure OAuth only: Mesnie
+MesnieApplication
+  - v2.0.3 -- the ClaimsBusPublisher bean out; the claims bus is always built beside the entity and audit
+    buses
+resources/application.yml
+  - esq.pure-oauth (ESQ_PURE_OAUTH) and kcmaster.path-buffer.* out; the claims-bus leg always built
+
 11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): the claims bus
 MesnieApplication
   - the ClaimsBusPublisher bean on esq.pure-oauth; the claims bus is built while esq.pure-oauth is on
@@ -24,9 +31,9 @@ pom.xml
     ${herald.version} and ${armoury.version} in the parent
 
 08/26/2026 mir0n  v1.2.13 -- configuration and develop logging
-resources/application.yml
-  - the admin connect / read timeouts take KC_ADMIN_CONNECT_TIMEOUT_MS and KC_ADMIN_READ_TIMEOUT_MS
-resources/logback-spring.xml
+resources/application.yml
+  - the admin connect / read timeouts take KC_ADMIN_CONNECT_TIMEOUT_MS and KC_ADMIN_READ_TIMEOUT_MS
+resources/logback-spring.xml
   - the develop pattern drops the "develop." prefix from the logger name
 
 08/17/2026 mir0n  v1.2.13 -- observability for the composed services

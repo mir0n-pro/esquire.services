@@ -9,6 +9,7 @@
  * 10/13/2026 mir0n  v2.0.0 -- moved into services2/hauberk, the Esquire half of the harness: the
  *                   generic machinery is Armoury's armoury-hauberk, this project is the Esquire
  *                   routines over it
+ * 11/24/2026 mir0n  v2.0.3 -- javadoc: kcMaster assigns no realm roles; the roles stay on the access profile
  */
 package pro.mir0n.esquire.hauberk.chain;
 
@@ -22,7 +23,7 @@ import static io.gatling.javaapi.http.HttpDsl.*;
  * keySmith persists to esq_auth (connectFlg N->Y), publishes URQ
  * EVENT_CREATE to ActiveMQ; kcMaster consumes and creates the KC user
  * with temp password "changeit", setTemporary(true), and required action
- * UPDATE_PASSWORD; assigns realm roles TREE + CLIENT.
+ * UPDATE_PASSWORD. The roles stay in Esquire: TREE + CLIENT on the access profile.
  *
  * Session inputs:
  *   userId    -- entity id (created by CreateUser).
@@ -33,7 +34,7 @@ import static io.gatling.javaapi.http.HttpDsl.*;
  * tryMax-retry, so no explicit wait here.
  *
  * Roles hardcoded: TREE (id=8, kind=982) + CLIENT (id=6, kind=980) --
- * canonical roles for kind=34 client users per esq_role_et + KC realm seed.
+ * canonical roles for kind=34 client users per esq_role_et.
  */
 public final class ConnectUser {
 

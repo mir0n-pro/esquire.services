@@ -10,6 +10,8 @@
  * 10/13/2026 mir0n  v2.0.0 -- moved into services2/hauberk, the Esquire half of the harness: the
  *                   generic machinery is Armoury's armoury-hauberk, this project is the Esquire
  *                   routines over it
+ * 11/24/2026 mir0n  v2.0.3 -- javadoc: the master-realm admin token serves the orphan cleanup (the race-8c verify is
+ *                   removed)
  */
 package pro.mir0n.esquire.hauberk.chain;
 
@@ -27,9 +29,9 @@ import static io.gatling.javaapi.http.HttpDsl.*;
  * admin REST API (e.g. /admin/realms/esquire/users) carry that token as
  * Authorization: Bearer.
  *
- * Why master-realm and not the esquire realm's hauberk client: race-8c
- * verification needs to read arbitrary users' attributes (esq_rootpath)
- * which requires realm-management permissions. The esq-hauberk client is
+ * Why master-realm and not the esquire realm's hauberk client: the orphan
+ * cleanup needs to search and delete arbitrary users, which requires
+ * realm-management permissions. The esq-hauberk client is
  * a SUPERVISOR-role business client, not a realm admin. Master-realm admin
  * has cross-realm rights via the standard /admin/realms/{realm}/... path.
  *

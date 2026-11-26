@@ -1,5 +1,25 @@
 Esquire gateWard Microservice
 
+11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
+ -- TokenRelay= out of every route; the spring.security.oauth2.client registration (keycloak,
+    KEYCLOAK_CLIENT_ID) out
+pom.xml
+
+11/23/2026 mir0n  v2.0.3 -- the roles header parse from common
+BizTreeCacheController
+  - v2.0.3 -- the roles header parse is EsqRequestScope.rolesOf(); the private rolesOf(String) out
+
+11/23/2026 mir0n  v2.0.3 -- pure OAuth only: the claims mode and the lab leave gateWard
+BizTreeCacheController
+  - v2.0.3 -- context(): uid / rootPath / roles from the X-Esq-* headers only; the endpoints take no
+    @AuthenticationPrincipal Jwt
+GateWardApplication
+  - v2.0.3 -- the claims bus is always built beside the entity and biz buses
+resources/application.yml
+  - esq.gateway.oauth: cache-idle-ms (ESQ_GW_OAUTH_CACHE_IDLE_MS), claims-uri (keySmith in mesnie,
+    ESQ_GW_OAUTH_CLAIMS_URI), claims-timeout-ms (ESQ_GW_OAUTH_CLAIMS_TIMEOUT_MS) in place of esq.gateway.pure-
+    oauth; the pure client list, keycloak.exchange, esq.jwe and esq.gateway.token-relay out
+
 11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): gateWard takes the claims from keySmith in mesnie
 BizTreeCacheController
   - context(): uid / rootPath / roles from the X-Esq-* headers when the token carries no esq_uid (pure OAuth)

@@ -10,9 +10,11 @@
  *                   Armoury KeyedExpiringCache (AFTER_ACCESS, evicted by uid); a miss asks keySmith through the
  *                   read-through get, and an answer an eviction overtook is asked again; meter
  *                   esq.biz.gw.pureoauth.total, result hit / miss / stale
+ * 11/22/2026 mir0n  v2.0.3 -- lab.pureoauth.PureOAuthClaimsCache -> oauth.ClaimsCache; meter
+ *                   esq.biz.gw.oauth.total
  */
 
-package pro.mir0n.esquire.gateway.lab.pureoauth;
+package pro.mir0n.esquire.gateway.oauth;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,15 +28,15 @@ import reactor.core.publisher.Mono;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class PureOAuthClaimsCache {
+public class ClaimsCache {
 
-    private static final Logger devLog = LoggerFactory.getLogger("develop." + PureOAuthClaimsCache.class.getName());
+    private static final Logger devLog = LoggerFactory.getLogger("develop." + ClaimsCache.class.getName());
 
     private final IUserClaimsClient delegate;
     //xxx: keyed by login id, evicted by uid
     private final KeyedExpiringCache<String, String, EsqUserClaims> cache;
 
-    public PureOAuthClaimsCache(IUserClaimsClient delegate, long idleMs) {
+    public ClaimsCache(IUserClaimsClient delegate, long idleMs) {
         this.delegate = delegate;
         this.cache = new KeyedExpiringCache<>(devLog, idleMs, IExpiringCache.Expiry.AFTER_ACCESS, EsqUserClaims::uid);
     }
@@ -52,10 +54,10 @@ public class PureOAuthClaimsCache {
         String loginId = EsqUtils.loginIdOf(tokenLoginId);
         EsqUserClaims hit = cache.get(loginId);
         if (hit != null) {
-            BizMeters.count("esq.biz.gw.pureoauth.total", "result", "hit");
+            BizMeters.count("esq.biz.gw.oauth.total", "result", "hit");
             ret = Mono.just(hit);
         } else {
-            BizMeters.count("esq.biz.gw.pureoauth.total", "result", "miss");
+            BizMeters.count("esq.biz.gw.oauth.total", "result", "miss");
             devLog.debug("claimsOf: cache MISS for [{}] -- asking keySmith", loginId);
             AtomicInteger asks = new AtomicInteger();
             ret = Mono.fromFuture(() -> cache.get(loginId, id -> ask(id, asks)));
@@ -67,7 +69,7 @@ public class PureOAuthClaimsCache {
     // keySmith was asked
     private CompletableFuture<EsqUserClaims> ask(String loginId, AtomicInteger asks) {
         if (asks.incrementAndGet() > 1) {
-            BizMeters.count("esq.biz.gw.pureoauth.total", "result", "stale");
+            BizMeters.count("esq.biz.gw.oauth.total", "result", "stale");
             devLog.debug("ask: [{}] was evicted while asked for -- asking keySmith again", loginId);
         }
         return delegate.fetch(loginId).toFuture();

@@ -39,37 +39,29 @@ class JwtClaimsExtractionFilterTest {
         SecurityContextHolder.clearContext();
     }
 
-    // Build a REAL jjwt Claims (same builder JwtService uses) -- avoids mocking the Claims
-    // interface, whose default / generic getters trip Mockito's when()/doReturn().
-    private Claims claims(boolean withEntityId) {
-        return claims(withEntityId, true, List.of("admin"));
+    // A REAL jjwt Claims (same builder JwtService uses) -- avoids mocking the Claims interface, whose default /
+    // generic getters trip Mockito's when()/doReturn().
+    private static Claims claims() {
+        return Jwts.claims().subject("alice").add("preferred_username", "alice").build();
     }
 
-    // Build claims controlling each REQUIRED custom claim independently -- esq_uid, esq_rootpath, and the
-    // realm-access roles (a null roles list = realm_access absent). Lets each rejection branch be exercised.
-    private Claims claims(boolean withEntityId, boolean withRootPath, List<String> roles) {
-        var b = Jwts.claims().subject("alice");
-        if (withEntityId) {
-            b.add(EsqConstants.JWT_CLAIM_ENTITY_ID, "5");
-        }
-        if (withRootPath) {
-            b.add(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, "1.2.");
-        }
-        if (roles != null) {
-            b.add(EsqConstants.JWT_CLAIM_REALM_ACCESS,
-                    Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, roles));
-        }
-        return b.build();
+    private static HttpServletRequest request(String uid, String rootPath, String roles) {
+        HttpServletRequest ret = mock(HttpServletRequest.class);
+        when(ret.getHeader("Authorization")).thenReturn("Bearer tok");
+        when(ret.getHeader(EsqConstants.X_ESQ_UID)).thenReturn(uid);
+        when(ret.getHeader(EsqConstants.X_ESQ_ROOT_PATH)).thenReturn(rootPath);
+        when(ret.getHeader(EsqConstants.X_ESQ_ROLES)).thenReturn(roles);
+        when(ret.getRequestURI()).thenReturn("/esq-cmd");
+        return ret;
     }
 
     @Test
     void validToken_capturesContextDuringChain_setsPrincipal_clearsAfter() throws Exception {
-        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletRequest request = request("5", "1.2.", "admin, teller");
         HttpServletResponse response = mock(HttpServletResponse.class);
-        when(request.getHeader("Authorization")).thenReturn("Bearer tok");
         when(request.getHeader(EsqConstants.ESQ_CORRELATION_ID)).thenReturn("corr-1");
         when(request.getHeader(EsqConstants.X_REQUEST_ID)).thenReturn("req-1");
-        when(jwtService.extractAllClaims("tok")).thenReturn(claims(true));
+        when(jwtService.extractAllClaims("tok")).thenReturn(claims());
 
         // Capture what downstream sees on the request thread while the chain runs.
         EsqRequestContext[] seen = { null };
@@ -85,6 +77,7 @@ class JwtClaimsExtractionFilterTest {
         assertThat(seen[0]).isNotNull();
         assertThat(seen[0].uid()).isEqualTo("5");
         assertThat(seen[0].rootPath()).isEqualTo("1.2.");
+        assertThat(seen[0].roles()).containsExactly("admin", "teller");
         assertThat(seen[0].correlationId()).isEqualTo("corr-1");
         assertThat(seen[0].requestId()).isEqualTo("req-1");
         assertThat(seenMdcUid[0]).isEqualTo("5");
@@ -115,38 +108,11 @@ class JwtClaimsExtractionFilterTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 
-    @Test
-    void missingEntityIdClaim_returns401_chainNotCalled_noContext() throws Exception {
-        HttpServletRequest request = mock(HttpServletRequest.class);
+    private void assert401For(HttpServletRequest request, Claims tokenClaims) throws Exception {
         HttpServletResponse response = mock(HttpServletResponse.class);
-        when(request.getHeader("Authorization")).thenReturn("Bearer tok");
-        when(request.getRequestURI()).thenReturn("/esq-cmd");
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         when(response.getOutputStream()).thenReturn(capture(body));
-
-        when(jwtService.extractAllClaims("tok")).thenReturn(claims(false));   // no esq_uid claim
-
-        boolean[] chainCalled = { false };
-        FilterChain chain = (req, res) -> chainCalled[0] = true;
-
-        filter.doFilterInternal(request, response, chain);
-
-        assertThat(chainCalled[0]).isFalse();
-        assertThat(EsqContextHolder.get()).isNull();
-        verify(response).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        assertProblemJson(body);
-    }
-
-    // The required-claims gate also rejects a token missing esq_rootpath or without realm-access roles -- the
-    // custom, security-relevant part of auth. Drive each branch and assert 401 + the chain is not entered.
-    private void assert401For(Claims badClaims) throws Exception {
-        HttpServletRequest request = mock(HttpServletRequest.class);
-        HttpServletResponse response = mock(HttpServletResponse.class);
-        when(request.getHeader("Authorization")).thenReturn("Bearer tok");
-        when(request.getRequestURI()).thenReturn("/esq-cmd");
-        ByteArrayOutputStream body = new ByteArrayOutputStream();
-        when(response.getOutputStream()).thenReturn(capture(body));
-        when(jwtService.extractAllClaims("tok")).thenReturn(badClaims);
+        when(jwtService.extractAllClaims("tok")).thenReturn(tokenClaims);
 
         boolean[] chainCalled = { false };
         FilterChain chain = (req, res) -> chainCalled[0] = true;
@@ -160,18 +126,31 @@ class JwtClaimsExtractionFilterTest {
     }
 
     @Test
-    void missingRootPathClaim_returns401_chainNotCalled() throws Exception {
-        assert401For(claims(true, false, List.of("admin")));   // esq_uid present, esq_rootpath absent
+    void missingUidHeader_returns401_chainNotCalled() throws Exception {
+        assert401For(request(null, "1.2.", "admin"), claims());
     }
 
     @Test
-    void nullRoles_returns401_chainNotCalled() throws Exception {
-        assert401For(claims(true, true, null));                // realm_access absent -> roles null
+    void missingRootPathHeader_returns401_chainNotCalled() throws Exception {
+        assert401For(request("5", null, "admin"), claims());
     }
 
     @Test
-    void emptyRoles_returns401_chainNotCalled() throws Exception {
-        assert401For(claims(true, true, List.of()));           // realm_access present but roles empty
+    void missingRolesHeader_returns401_chainNotCalled() throws Exception {
+        assert401For(request("5", "1.2.", null), claims());
+    }
+
+    @Test
+    void blankRolesHeader_returns401_chainNotCalled() throws Exception {
+        assert401For(request("5", "1.2.", " "), claims());
+    }
+
+    @Test
+    void claimsInTheTokenAreNotRead_returns401() throws Exception {
+        Claims claimsToken = Jwts.claims().subject("alice")
+                .add("esq_uid", "5").add("esq_rootpath", "1.2.")
+                .add("realm_access", Map.of("roles", List.of("admin"))).build();
+        assert401For(request(null, null, null), claimsToken);
     }
 
     private static ServletOutputStream capture(ByteArrayOutputStream sink) {

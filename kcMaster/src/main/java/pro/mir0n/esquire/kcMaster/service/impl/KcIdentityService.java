@@ -29,6 +29,11 @@
  *                   request and removed on removeTotp, and the write happens only when something changed.
  *                   deleteUser checks and closes the JAX-RS Response, so a refused delete is not SUCCESS
  * 11/21/2026 mir0n  v2.0.2 -- consume -> getAndRemove
+ * 11/23/2026 mir0n  v2.0.3 -- pure OAuth only: the path park field and the race-8c flush (applyBufferedPath())
+ *                   out of createUser(); the realm role sync (updateRealmRoles(), assignRealmRoles()) and
+ *                   updateEntityPath() out
+ * 11/25/2026 mir0n  v2.0.3 -- createUser() and updateUserAuthState() lose attributes: the attribute set on a
+ *                   create and the merge on an update out
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -43,21 +48,14 @@ import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
-import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.LoggerFactory;
-import pro.mir0n.esquire.kcMaster.messaging.ParkedPath;
-import pro.mir0n.utils.concurrent.ExpiringCache;
 import pro.mir0n.esquire.backend.identity.KcConnectionSettings;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
-import pro.mir0n.esquire.common.EsqConstants;
-
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -66,8 +64,6 @@ public class KcIdentityService implements IKcIdentityService {
 
     private final Keycloak keycloak;
     private final KcConnectionSettings kcConnection;
-    /** Race-8c park, filled by EntityBusAdapter off the topic; drained here once the user exists. */
-    private final ExpiringCache<String, ParkedPath> pathBuffer;
 
     @Override
     @EsqTraced(name = "esq.kc.create-user", label = "Keycloak create user")
@@ -78,8 +74,6 @@ public class KcIdentityService implements IKcIdentityService {
             boolean enabled,
             boolean forcePasswordChange,
             boolean requireTotp,
-            List<String> realmRoles,
-            Map<String, List<String>> attributes,
             String correlationId,
             String requestId
     ) {
@@ -107,10 +101,6 @@ public class KcIdentityService implements IKcIdentityService {
             user.setRequiredActions(requiredActions);
         }
 
-        if (attributes != null && !attributes.isEmpty()) {
-            user.setAttributes(attributes);
-        }
-
         String kcId;
         Response response = usersResource.create(user);
         try {
@@ -126,47 +116,7 @@ public class KcIdentityService implements IKcIdentityService {
             setUserPassword(usersResource, kcId, password, !forcePasswordChange);
         }
 
-        if (realmRoles != null) {
-            updateRealmRoles(realmResource, kcId, realmRoles);
-        }
-
-        // Race-8c flush: if enyMan's move-cascade EVENT_UPDATE_PATH for this entity
-        // arrived on the topic before the user existed, KcEntityBroadcastConsumer
-        // parked the post-move path in the race-8c cache. Consume it now and apply --
-        // otherwise the URQ EVENT_UPDATE_PATH path was silent-skipped and the KC
-        // user would be left with the stale CREATE-time path forever.
-        String entityId = (attributes != null && attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID) != null
-                && !attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID).isEmpty())
-                ? attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID).get(0) : null;
-        if (entityId != null) {
-            ParkedPath buffered = pathBuffer.getAndRemove(entityId);
-            if (buffered != null) {
-                // The park keeps the NEWEST move, so this is the last known path, not merely the last one to
-                // arrive on the topic (T11). The number is logged, never compared here -- there is nothing on
-                // a brand-new KC user to compare it against.
-                devLog.debug("Race-8c flush: entityId={} path={} pathChangeNo={}",
-                        entityId, buffered.path(), buffered.changeNo());
-                applyBufferedPath(usersResource, kcId, entityId, buffered.path());
-            }
-        }
-
         log.info("KC | CREATE | username={} | state=SUCCESS | kcUserId={}", loginId, kcId);
-    }
-
-    private void applyBufferedPath(UsersResource usersResource, String kcId, String entityId, String newPath) {
-        UserResource userResource = usersResource.get(kcId);
-        UserRepresentation user = userResource.toRepresentation();
-        Map<String, List<String>> existing = user.getAttributes() != null
-                ? user.getAttributes() : Collections.emptyMap();
-        List<String> currentPaths = existing.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
-        String currentPath = (currentPaths != null && !currentPaths.isEmpty()) ? currentPaths.get(0) : null;
-        if (!newPath.equals(currentPath)) {
-            Map<String, List<String>> merged = new HashMap<>(existing);
-            merged.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(newPath));
-            user.setAttributes(merged);
-            userResource.update(user);
-            log.info("KC | CREATE | entityId={} | buffered-path-applied={}", entityId, newPath);
-        }
     }
 
     @Override
@@ -178,8 +128,6 @@ public class KcIdentityService implements IKcIdentityService {
             Boolean forcePasswordChange,
             Boolean requireTotp,
             Boolean removeTotp,
-            List<String> realmRoles,
-            Map<String, List<String>> attributes,
             String correlationId,
             String requestId
     ) {
@@ -197,7 +145,7 @@ public class KcIdentityService implements IKcIdentityService {
         String kcId = users.get(0).getId();
         UserResource userResource = usersResource.get(kcId);
         // Full representation required -- search result carries minimal data (attributes = null).
-        // Using toRepresentation() preserves existing KC attributes (esq_uid, esq_rootpath, etc.)
+        // Using toRepresentation() preserves the existing KC attributes
         UserRepresentation user = userResource.toRepresentation();
 
         boolean changed = false;
@@ -231,26 +179,11 @@ public class KcIdentityService implements IKcIdentityService {
             changed = true;
         }
 
-        // Merge attributes -- never replace whole map, preserves esq_uid, esq_rootpath, etc.
-        if (attributes != null) {
-            Map<String, List<String>> merged = new HashMap<>();
-            if (user.getAttributes() != null) {
-                merged.putAll(user.getAttributes());
-            }
-            merged.putAll(attributes);
-            user.setAttributes(merged);
-            changed = true;
-        }
-
         if (changed) {
             userResource.update(user);
             devLog.debug("User updated: {}", loginId);
         } else {
             devLog.debug("User representation unchanged, skipping KC update: {}", loginId);
-        }
-
-        if (realmRoles != null) {
-            updateRealmRoles(realmResource, kcId, realmRoles);
         }
 
         if (Boolean.TRUE.equals(removeTotp)) {
@@ -294,45 +227,6 @@ public class KcIdentityService implements IKcIdentityService {
         devLog.debug("User deleted: {}", kcId);
     }
 
-    @Override
-    @EsqTraced(name = "esq.kc.update-path", label = "Keycloak update path")
-    public void updateEntityPath(String entityId, String newPath, String correlationId, String requestId) {
-        log.info("KC | MOVE | entityId={} | state=STARTED", entityId);
-
-        RealmResource realmResource = keycloak.realm(kcConnection.getRealm());
-        UsersResource usersResource = realmResource.users();
-
-        List<UserRepresentation> users = usersResource.searchByAttributes(
-                EsqConstants.JWT_CLAIM_ENTITY_ID + ":" + entityId, true);
-        if (!users.isEmpty()) {
-            String kcId = users.get(0).getId();
-            UserResource userResource = usersResource.get(kcId);
-            UserRepresentation user = userResource.toRepresentation();
-
-            Map<String, List<String>> existing = user.getAttributes() != null ? user.getAttributes() : Collections.emptyMap();
-            List<String> currentPaths = existing.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
-            String currentPath = (currentPaths != null && !currentPaths.isEmpty()) ? currentPaths.get(0) : null;
-            if (!newPath.equals(currentPath)) {
-                Map<String, List<String>> merged = new HashMap<>(existing);
-                merged.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(newPath));
-                user.setAttributes(merged);
-                userResource.update(user);
-                devLog.debug("Path reset for user: {}='{}'", entityId, newPath);
-                log.info("KC | MOVE | entityId={} | state=SUCCESS", entityId);
-            } else {
-                devLog.debug("KC | MOVE | entityId={} : path unchanged, skipping", entityId);
-            }
-        } else {
-            // Race-8c: the KC user does not exist yet. The REQUEST side does NOT buffer --
-            // the buffer is fed solely by the path field of the X (entity-broadcast) message
-            // via KcEntityBroadcastConsumer, which every kcMaster instance receives (a URQ
-            // request lands on only one pod, so it cannot be the buffer source under the
-            // redundant multi-instance setup). This request simply skips; the keySmith CREATE
-            // URQ's createUser will consume the path the X message already parked.
-            devLog.debug("KC | MOVE | entityId='{}' : no KC user yet, request skipped (path buffered from X message)", entityId);
-        }
-    }
-
     private String extractUserIdFromResponse(Response response) {
         String location = response.getHeaderString("Location");
         if (location == null) {
@@ -361,43 +255,5 @@ public class KcIdentityService implements IKcIdentityService {
             ret = true;
         }
         return ret;
-    }
-
-    private void assignRealmRoles(RealmResource realmResource, String kcId, List<String> roleNames) {
-        List<RoleRepresentation> rolesToAssign = new ArrayList<>();
-        for (RoleRepresentation role : realmResource.roles().list()) {
-            if (roleNames.contains(role.getName())) {
-                rolesToAssign.add(role);
-            }
-        }
-        if (!rolesToAssign.isEmpty()) {
-            realmResource.users().get(kcId).roles().realmLevel().add(rolesToAssign);
-            devLog.debug("Assigned roles {} to user: {}", roleNames, kcId);
-        }
-    }
-
-    private void updateRealmRoles(RealmResource realmResource, String kcId, List<String> roleNames) {
-        UserResource userResource = realmResource.users().get(kcId);
-        List<RoleRepresentation> currentRoles = userResource.roles().realmLevel().listAll();
-
-        ArrayList<String> toAdd    = new ArrayList<>(roleNames);
-        ArrayList<RoleRepresentation> toRemove = new ArrayList<>();
-        for (RoleRepresentation role : currentRoles) {
-            if (!toAdd.remove(role.getName())) {
-                toRemove.add(role);
-            }
-        }
-
-        if (!toRemove.isEmpty() || !toAdd.isEmpty()) {
-            if (!toRemove.isEmpty()) {
-                userResource.roles().realmLevel().remove(toRemove);
-            }
-            if (!toAdd.isEmpty()) {
-                assignRealmRoles(realmResource, kcId, toAdd);
-            }
-            devLog.debug("Updated roles for user: {}", kcId);
-        } else {
-            devLog.debug("Realm roles unchanged for user: {}", kcId);
-        }
     }
 }

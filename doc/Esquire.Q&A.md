@@ -46,7 +46,7 @@ about one of them.
 
 | the boundary | what it checks | what is trusted inside it |
 |---|---|---|
-| the gate | the token's signature, its claims, the realm role | a service reads `esq_uid` / `esq_rootpath` from the payload without re-verifying the signature |
+| the gate | the token's signature and expiry; the caller's claims, looked up in keySmith by login id | a service reads the uid, root path and roles from the `X-Esq-*` headers the gate set, without re-verifying the token |
 | the channel | whether it guarantees delivery | a leg that is not durable accepts loss; a consumer is not given retry / park / DLQ machinery to compensate |
 | the fan-out | nothing -- a broadcast has no acknowledgement by nature | a lost broadcast is a bounded window, healed by the night-watch, and the requirement is that it be COUNTED |
 | the value | caller input, at the validator | a value the service itself produced is written as given -- validation is for what comes in from outside |
@@ -337,9 +337,9 @@ A. Two separate concerns, both already handled by design.
   a gap: a durable topic sub needs a stable per-subscriber `clientId`, which deadlocks a k8s RollingUpdate, and
   buys nothing against a non-persistent broker -- so the night-watch anti-entropy is the "no event loss" mechanism
   by design, and it heals a missed-during-disconnect event exactly as it heals a failed apply (see
-  `Esquire.BizTree.md`, "Broadcast subscription is non-durable"). kcMaster's entity-broadcast consumer is only a
-  race-8c SAFETY-NET (it parks a not-yet-created user's new path); the authoritative KC channel is the URQ
-  `EVENT_UPDATE_PATH` request/response, so a missed broadcast there costs nothing.
+  `Esquire.BizTree.md`, "Broadcast subscription is non-durable"). kcMaster does not listen to the entity
+  broadcast at all: KeyCloak holds no path, and kcMaster takes its work only from the request/response channel
+  below.
 - **R&R (KeyCloak request/response)** -- the one channel where lost delivery is a genuine reliability question;
   that is the R&R reply-tracking / timeout / replier-down work, tracked in
   `Herald.MessagingBus.ContinuingDev.md`, not a generic DLQ.
@@ -439,44 +439,32 @@ So "no audit on OKE" is the deliberate free-tier setup; the DB-trigger overlay s
 
 *Token format and the trusted-perimeter model (validate once at the edge, trust inside), onboarding credentials, and CORS (cross-origin browser calls).*
 
-**Q1. Access tokens are signed JWTs (JWS), not encrypted (JWE) -- so any holder can read the claims (`esq_uid`,
-rootPath, roles). And the gateway "token relay" hands a full downstream JWT to a client that presented only
-credentials, or a claim-stripped token. Isn't a readable, or a relayed, token a security weakness?**
+**Q1. Access tokens are signed JWTs (JWS), not encrypted (JWE) -- so any holder can read them. Isn't a readable
+token a security weakness?**
 
-A. No -- it is the deliberate, documented compromise the identity server forces, not a gap. The full rationale, the
-pattern catalog, the measured cost, and the "which pattern when" decision matrix are in
-[Keycloak / Gateway -- Authentication Patterns](Esquire.Auth.TokenPatterns.md); the framework-level summary:
+A. No -- because the token carries nothing a reader can use to learn a caller's position or rights. The patterns
+weighed, the measurements, and the reasoning are in
+[Keycloak / Gateway -- Authentication Patterns](Esquire.Auth.TokenPatterns.md); the short form:
 
-1. **JWE (an encrypted access token) is the only single-token format that hides claims from the client AND stays
-   self-contained on the request's fast path -- but stock Keycloak 26 does not emit JWE.** Its `DefaultTokenManager`
-   has no encryption path on `/token` for any standard grant (the `access.token.encrypted.response.alg` attribute is
-   silently ignored). So the ideal is inaccessible until KC ships it or the identity server (IAS) is swapped (Auth0
-   / Okta / ForgeRock / Ping all emit JWE). A gateway-side JWE decoder is kept in tree, inert, for that day.
+1. **The token names the caller by login id, and nothing more.** The uid, the root path, and the roles stay in
+   `esq2025`. The gateway validates the token's signature and expiry, looks the caller up in keySmith by login id,
+   caches the answer, and puts the claims on the request. A reader of the token learns the login id; nothing
+   about where the user sits in the tree or what they may do.
 
-2. **The recommended production patterns are BFF and plain JWT.** The browser never holds a token at all -- the BFF
-   keeps it server-side and the browser carries an opaque session cookie (meaningless on its own). A
-   service-to-service caller holds a standard signed JWT, validated locally at every hop against KC's public keys
-   (JWKS). Readable claims are by design here:
-   authorization comes from validating the signature and the claims at each hop, not from hiding them;
-   confidentiality on the wire is TLS.
+2. **Encrypting a token with the claims in it would buy nothing more, and it is not on offer.** Stock Keycloak 26
+   does not encrypt an access token on `/token` (the `access.token.encrypted.response.alg` attribute is ignored),
+   and AWS documents only signed access tokens. Identity servers that do encrypt (Auth0, Okta, ForgeRock, Ping)
+   would tie Esquire to one of them and put a decryption key on every service. With the claims left out, there is
+   nothing to encrypt.
 
-3. **Vanilla and Phantom Token Relay are a NOT-recommended lab "detour", not a production path.** They approximate
-   JWE's claim-hiding by partitioning across tiers, but neither delivers its headline benefit under stock KC, so
-   they are exploration patterns and are **not armed on the public OKE API** (disabled 2026-07-20):
-   - *Vanilla* -- the client presents only static credentials (HTTP Basic); the gateway runs the
-     `client_credentials` grant and caches the JWT per `client_id`. The secret is checked for real on a cache miss;
-     on a cache hit the cached token is served by `client_id` alone -- a lab-grade shortcut, which is exactly why
-     it is not a production auth path.
-   - *Phantom* -- the client holds a JWT whose business claims are stripped; the gateway runs an RFC 8693 token-
-     exchange to obtain the **full signed JWT** and forwards **that JWT** downstream (services validate it locally
-     against JWKS, like plain JWT). It deliberately does NOT introspect-and-inject-claims-as-headers -- that
-     alternative (Opaque+Introspection / Lightweight+Userinfo) was rejected because it puts a per-request KC
-     roundtrip back on every service. The claim-stripping half is currently disabled anyway: KC 26.4.7's v1 token-
-     exchange propagates the stripping through the exchange (leaving the backend claim-less), so full stripping
-     waits on KC token-exchange v2.
+3. **The browser never holds a token.** The BFF keeps it on the server; the browser carries an opaque session
+   cookie. A direct client, such as the load harness, holds its own token, and it is the same login-id-only token.
 
-So the token is a readable signed JWT by design (validated at every hop, not hidden; TLS on the wire); JWE is the
-parked ideal; and the two relay patterns are a documented lab detour, not the recommended production shape.
+4. **What remains is the bearer property, the same for every token format.** Whoever holds a token can use it
+   until it expires -- a signed token and an encrypted one alike. The limits are TLS on the wire, the token kept
+   off the browser, and a short lifetime (five minutes on the shipped realm).
+
+So the token is a readable signed JWT by design, and readable is harmless because it says only who the caller is.
 
 ---
 
@@ -512,16 +500,17 @@ So it is the framework/demo connect flow by design; hardened onboarding is the a
 **Q3. The individual services do NOT verify the token they receive -- `JwtService.extractAllClaims` base64-decodes
 and JSON-parses the JWT payload with the signature check commented out, and the per-service filter checks only that
 the claims are PRESENT (it never checks the signature or the expiry). So a request that reaches a service directly
-with a hand-crafted, unsigned, or expired token carrying the right claims is accepted. Isn't that a hole?**
+with a hand-crafted, unsigned, or expired token and the right `X-Esq-*` headers is accepted. Isn't that a hole?**
 
 A. No -- it is the deliberate TRUSTED-PERIMETER model: the gateway is the single point that validates a token, and
 everything behind it trusts the claims the gateway forwards.
 
 1. **The gateway is the one validation point.** Every request from the outside enters through the gateway, which
    validates the token's signature and expiry against Keycloak's keys (JWKS). A request that fails validation never
-   reaches a service. The services sit behind that perimeter and read the already-validated claims (`esq_uid`,
-   rootPath, roles) rather than re-validating on every hop -- re-checking the signature at each service would add a
-   cost the perimeter model is designed to avoid.
+   reaches a service. The gateway also strips any `X-Esq-*` header the client sent and sets its own from keySmith.
+   The services sit behind that perimeter and read those headers (the uid, the root path, the roles) rather than
+   re-validating on every hop -- re-checking the signature at each service would add a cost the perimeter model is
+   designed to avoid.
 
 2. **The services are not directly reachable in a real deployment.** On k8s / OKE the services are ClusterIP
    (reachable only inside the cluster) -- only the gateway is exposed; no outside actor can hand a service a forged
@@ -564,21 +553,23 @@ behind the perimeter); the strict origin list lives where it matters, at the gat
 
 ---
 
-**Q5. Assigning a user to a role sends the role NAME from the request body: keySmith writes the membership row
-from the role `id` and the bus event carries the `name`, which kcMaster matches against the realm role list. So one
-request could name one role for `esq2025` and another for KeyCloak. Why is the name not resolved from the id?**
+**Q5. Assigning a user to a role takes the role's `id`, `kind` and `name` from the request body. keySmith writes
+the membership row from the `id`, but the save's answer (its permission list) and the "one administrative role"
+check read the `name` and `kind` as sent. So one request could name one role by `id` and another by `name`. Why is
+the role not resolved from the id?**
 
-A. Because roles are **static configuration**, not runtime data, and the tool that will own them is not built yet.
+A. Because roles are **static configuration**, not runtime data, the mismatch cannot reach authorization, and the
+tool that will own role assignment is not built yet.
 
-1. **What the operation is.** There is no editing of a role here. The role catalogue is defined at deployment and
-   is the same on both sides by construction; the only runtime operation is **assigning a user to a role**. The
-   fields in the request are the triple the browser just read back -- `id`, `kind`, `name` -- and the client sends
-   them unchanged.
+1. **What decides access.** The claims the gateway puts on every request come from the stored membership rows:
+   keySmith answers `/esq-claims` with the role names read back from `esq2025` by id. A `name` sent in a save is
+   never stored and never read again. KeyCloak holds no Esquire roles, so there is no second copy that could
+   disagree. The most a mismatched request changes is the permission list in its own answer.
 
 2. **What is trusted, and by whom.** The caller must already pass the `AdminCmd.AUTH` gate for the target's kind,
    so this is an administrator acting on someone else's assignment; `personal` is refused outright, so it cannot
-   be done to oneself. The ceiling is the realm role set -- `realm-management` roles are CLIENT roles and are not
-   in `realmResource.roles().list()`, so the assignment cannot reach realm administration.
+   be done to oneself. The role catalogue is defined at deployment, and the browser sends back the triple it just
+   read -- `id`, `kind`, `name` -- unchanged.
 
 3. **Where the resolve belongs.** In **Marshal**, the reference administration tool, when it ships: the assignment names a role by
    **id**, the server looks the row up, and `name` and `kind` come from the resolved row rather than the request.
@@ -638,10 +629,9 @@ A. It is a published DEVELOPMENT credential, and that is the deliberate posture 
    are (section 5 Q2).
 
 2. **Every one of them is an override, not a constant.** `deploy-oke.sh` reads `MIR0N_PWD`, `BFF_KC_SECRET`,
-   `GW_EXCHANGE_SECRET`, `BFF_SESSION_SECRET` and `KCMASTER_ADMIN_SECRET` from the environment, and the deploy
-   workflow passes all five from the GitHub Environment. Set one there and the literal is not used. An adopter
-   deploying this for real sets all five, and replaces the client secret in their own realm import -- which is
-   theirs to write, not ours.
+   `BFF_SESSION_SECRET` and `KCMASTER_ADMIN_SECRET` from the environment, and the deploy workflow passes all four
+   from the GitHub Environment. Set one there and the literal is not used. An adopter deploying this for real sets
+   all four, and replaces the client secret in their own realm import -- which is theirs to write, not ours.
 
    For the kcMaster client the plumbing is one variable, `KCMASTER_ADMIN_SECRET`, read by every path: the two
    local bring-ups, the local rebuild, both OKE scripts, the compose stacks and the deploy workflow. The

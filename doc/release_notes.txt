@@ -1,6 +1,155 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2602  v2.0.3 -- finalization: the docs describe one kind of sign-in
+    :Doc:         README.md
+                  Releases.md
+                  Esquire.Auth.md
+                  Esquire.Auth.TokenPatterns.md
+                  Esquire.Auth.keySmithRoutine.md
+                  Esquire.ContinuingDev.md
+                  Esquire.GitHubActions.md
+                  Esquire.GrafanaGuide.md
+                  Esquire.Haubergeon.md
+                  Esquire.ObservabilityStack.md
+                  Esquire.Q&A.md
+                  Esquire.TestingStack.md
+                  services.configuring.md
+                  v2.0.x.Goals.md
+                  v2.0.x.Planning.md
+    Components:   doc,
+                  compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci,
+                  k8s-oci-compact
+
+v2.0.3-2611.2522  v2.0.3 -- OKE by hand: the observability check on the cloud
+    :Fix:         the cloud observability check looks for paacMan, the service the cloud runs, in place of pacMan
+    :Fix:         the latency check reads all its numbers at the same moment, so a check run right after traffic
+                  no longer reports a gap that is not there
+    Components:   o11y
+
+v2.0.3-2611.2518  v2.0.3 -- code review: what the claims mode left behind
+    - the gateway no longer carries the token relay filter and a sign-in client setup it never used
+    - the KeyCloak load harness client loses its token encryption settings, which KeyCloak never applied
+    - KeyCloak users carry no Esquire id; kcMaster writes no extra data to a KeyCloak user
+    - the KeyCloak reconcile check pairs the users by login id and also checks the email
+    - five demo users in KeyCloak get the email the seed gives them
+    Components:   gateway,
+                  gateWard,
+                  common,
+                  kcMaster,
+                  keycloak,
+                  hauberk,
+                  compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci,
+                  k8s-oci-compact
+
+v2.0.3-2611.2501  v2.0.3 -- OAuth only: observability
+    :Config:      the services board shows the gateway's claims cache hit rate and the keySmith claims query
+                  time in place of the token relay panels; the KeyCloak line is out of the request time bands
+    :Config:      the topology boards draw the claims bus, right after the biz bus, on every shape
+    :Config:      the classic topology board's gateway calls bizTree from its left side, under the bus lines
+    :Config:      the classic OKE Grafana loads the OKE boards, as compact OKE already did
+    :Config:      the o11y inventory lists the OAuth claims signals; the token relay signals are out
+    Components:   compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci,
+                  k8s-oci-compact
+
+v2.0.3-2611.2419  v2.0.3 -- OAuth only: the test routines and the KeyCloak seed
+    :Config:      the KeyCloak realm keeps three Esquire clients: the browser's, the load harness's and
+                  kcMaster's; the lab, token relay and token exchange clients are removed
+    :Config:      the KeyCloak users carry no root path and no Esquire roles, and the realm defines no
+                  Esquire roles
+    :Config:      KeyCloak runs without the token exchange feature on docker and k8s
+    :Config:      the compact Postgres and KeyCloak image pins move to v2.0.3-2611.2418, the release of the
+                  new seed and realm
+    :Config:      the OKE e2e run skips no spec
+    :Config:      the config parity check no longer accepts the removed token relay and lab client keys
+    :Refactoring: the KeyCloak reconcile check reports a missing or an orphan account only; the root path
+                  repair is removed
+    :Refactoring: the load harness drops the race test for a path reaching KeyCloak before its user, the
+                  token relay and lab client overlays, and their perf cells
+    Components:   keycloak,
+                  postgres,
+                  hauberk
+
+v2.0.3-2611.2401  v2.0.3 -- dead code out
+    :Refactoring: what pure OAuth left unused is removed: the claims publisher, the pure OAuth switch name,
+                  the moved-path hand-over to the identity gateway, and the root path and roles fields of the
+                  identity command
+    :Refactoring: three older unused pieces are removed too: a name-value serializer, a gateway timing header
+                  name and an error detail field name
+    Components:   common,
+                  kcMaster,
+                  keySmith
+
+v2.0.3-2611.2323  v2.0.3 -- pure OAuth only: Mesnie
+    :Refactoring: Mesnie runs pure OAuth only: the claims bus is always built
+    :Config:      the pure OAuth switch and the path hold settings leave Mesnie, the compose-compact mesnie
+                  service and the k8s mesnie chart; the mesnie chart names its entity bus role as a client
+    :Config:      the KeyCloak image pin moves to v2.0.3-2611.2300, the release of the pure OAuth realm
+    Components:   mesnie,
+                  keycloak
+
+v2.0.3-2611.2320v2.0.3 -- pure OAuth only: kcMaster
+    :Refactoring: kcMaster runs pure OAuth only: a new Keycloak user gets the Esquire id and nothing else,
+                  and the root path, the roles and the path moves are no longer written
+    :Refactoring: kcMaster no longer listens to the entity broadcasts; the held path for a user who did not
+                  exist yet is gone with them
+    :Refactoring: enyMan no longer talks to kcMaster
+    :Config:      the pure OAuth switch and the path hold settings leave kcMaster, the compose kcmaster
+                  service and the k8s kcmaster chart; the kcMaster entity bus and the enyMan kc bus settings
+                  leave compose, the k8s charts and the local k8s and OKE overlays
+    Components:   kcMaster, enyMan
+
+v2.0.3-2611.2317  v2.0.3 -- pure OAuth only: enyMan
+    :Refactoring: enyMan runs pure OAuth only: a moved user always tells the gateways to drop the user's
+                  claims, and the moved path no longer goes to Keycloak
+    :Config:      the pure OAuth switch leaves enyMan, the compose enyman service and the k8s enyman chart
+    Components:   enyMan
+
+v2.0.3-2611.2314  v2.0.3 -- pure OAuth only: keySmith
+    :Refactoring: keySmith runs pure OAuth only: a saved access profile always tells the gateways to
+                  drop the user's claims, and the root path and the roles no longer go to Keycloak
+    :Config:      the pure OAuth switch leaves keySmith, the compose keysmith service and the k8s keysmith
+                  chart
+    :Config:      the keySmith test hold for the old create-while-move race is removed, with its compose
+                  settings
+    Components:   keySmith
+
+v2.0.3-2611.2312  v2.0.3 -- pure OAuth only: common
+    :Refactoring: the services take the caller's claims from the gateway's headers only; the Esquire
+                  claims in a token are no longer read
+    :Refactoring: the gateway and gateWard share the roles header parse and the login id claim name from
+                  common
+    Components:   common,
+                  gateway,
+                  gateWard
+
+v2.0.3-2611.2300  v2.0.3 -- pure OAuth only: the gateway and gateWard; pure OAuth is the default
+    :Refactoring: the gateway and gateWard read every token as a pure OAuth token: the login id comes
+                  from the token, the Esquire claims from keySmith
+    :Refactoring: the claims mode leaves both; JWE and the token relay (Vanilla, Phantom) are removed
+    :Config:      the services run pure OAuth on every target: ESQ_PURE_OAUTH is true in compose,
+                  compose-compact and the k8s charts
+    :Config:      Keycloak: esq-angular and esq-hauberk carry the login id only, with no Esquire claims and
+                  no roles
+    :Config:      the settings and the claims cache meter are named oauth (esq.gateway.oauth.*,
+                  ESQ_GW_OAUTH_*, esq.biz.gw.oauth.total)
+    :Config:      compose, compose-compact, both local k8s shapes, the frozen OKE shapes and the OKE deploy
+                  lose the relay, JWE and client-list settings and the exchange secret
+    Components:   gateway,
+                  gateWard
+
 v2.0.2-2611.2217  v2.0.2 -- pure OAuth, a lab mode: the claims leave the token
     :Feature:     pure OAuth (lab): the token carries no Esquire claims; the gateway takes them from
                   keySmith and keeps them while they are asked for

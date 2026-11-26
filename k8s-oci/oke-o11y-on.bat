@@ -68,7 +68,7 @@ rem unqualified image ("grafana/alloy returns ambiguous list"). The shared chart
 rem names (fine on Docker Desktop, which defaults to docker.io); OKE needs them fully qualified.
 call helm upgrade --install esquire-infra-loki    %CH%\infra\loki    --set image.repository=docker.io/grafana/loki    --set nodeSelector.tier=o11y || exit /b 1
 call helm upgrade --install esquire-infra-alloy   %CH%\infra\alloy   --set image.repository=docker.io/grafana/alloy   --set nodeSelector.tier=o11y || exit /b 1
-call helm upgrade --install esquire-infra-grafana %CH%\infra\grafana --set image.repository=docker.io/grafana/grafana --set nodeSelector.tier=o11y || exit /b 1
+call helm upgrade --install esquire-infra-grafana %CH%\infra\grafana --set image.repository=docker.io/grafana/grafana --set nodeSelector.tier=o11y --set-file dashboardTopology=grafana/esquire-topology.json --set-file dashboardServices=grafana/esquire-services.json --set-file dashboardLogging=grafana/esquire-logging.json || exit /b 1
 echo --- Removing the tracing/metrics side (must not run -- LOG is logging alone)...
 call helm uninstall esquire-infra-tempo             2>nul
 call helm uninstall esquire-infra-otel-collector    2>nul
@@ -112,7 +112,7 @@ call helm upgrade --install esquire-infra-tempo             %CH%\infra\tempo    
 call helm upgrade --install esquire-infra-otel-collector    %CH%\infra\otel-collector    --set image.repository=docker.io/otel/opentelemetry-collector-contrib --set nodeSelector.tier=o11y || exit /b 1
 call helm upgrade --install esquire-infra-prometheus        %CH%\infra\prometheus        --set image.repository=docker.io/prom/prometheus                    --set nodeSelector.tier=o11y || exit /b 1
 call helm upgrade --install esquire-infra-postgres-exporter %CH%\infra\postgres-exporter --set nodeSelector.tier=o11y || exit /b 1
-call helm upgrade --install esquire-infra-grafana           %CH%\infra\grafana           --set image.repository=docker.io/grafana/grafana                    --set nodeSelector.tier=o11y || exit /b 1
+call helm upgrade --install esquire-infra-grafana           %CH%\infra\grafana           --set image.repository=docker.io/grafana/grafana                    --set nodeSelector.tier=o11y --set-file dashboardTopology=grafana/esquire-topology.json --set-file dashboardServices=grafana/esquire-services.json --set-file dashboardLogging=grafana/esquire-logging.json || exit /b 1
 echo --- App services (NO aukeep): tracing/metrics ON, ONLY pro.mir0n at INFO...
 for %%s in (gateway enyman biztree paacman keysmith kcmaster) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF

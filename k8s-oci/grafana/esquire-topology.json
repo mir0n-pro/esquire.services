@@ -40,7 +40,7 @@
     "x": 0,
     "y": 1
    },
-   "description": "Every component of the system, live. Each box carries a LIVE NUMBER, not just a colour -- a traffic light tells you a thing is RUNNING, not that it has stopped doing any WORK, which is the failure that actually happens. CLICK A BOX for its detail. GREEN = reporting, RED = down, GREY = no data (which here almost always means observability is OFF -- ESQ_OBSERVABILITY_ENABLED, off by default -- not that the component is broken). THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, where a service publishes to a destination and walks away, and who is listening is not its business. THERE ARE TWO BARS, not one, because there are TWO BUSES -- and which services share a medium (and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; enyMan is on both. One bar would hide that. The observability stack is deliberately NOT on this board: the viewer is not the system, and six boxes of tooling watching the tooling would drown the question this board exists to answer.",
+   "description": "Every component of the system, live. Each box carries a LIVE NUMBER, not just a colour -- a traffic light tells you a thing is RUNNING, not that it has stopped doing any WORK, which is the failure that actually happens. CLICK A BOX for its detail. GREEN = reporting, RED = down, GREY = no data (which here almost always means observability is OFF -- ESQ_OBSERVABILITY_ENABLED, off by default -- not that the component is broken). THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, where a service publishes to a destination and walks away, and who is listening is not its business. THERE ARE FOUR BARS, not one, because there are FOUR BUSES -- and which services share a medium (and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; the gateway hears the claims bus only. One bar would hide that. The observability stack is deliberately NOT on this board: the viewer is not the system, and six boxes of tooling watching the tooling would drown the question this board exists to answer.",
    "targets": [
     {
      "refId": "h0",
@@ -2369,7 +2369,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 343,
+        "left": 373,
         "top": 596,
         "width": 140,
         "height": 80,
@@ -2403,10 +2403,29 @@
          "direction": "none"
         },
         {
+         "targetName": "bus:esquire.claims",
+         "path": "straight",
+         "source": {
+          "x": -0.22000000000000003,
+          "y": 1
+         },
+         "target": {
+          "x": 0,
+          "y": -1
+         },
+         "color": {
+          "fixed": "#7FC4BE"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "none"
+        },
+        {
          "targetName": "bus:esquire.kc",
          "path": "straight",
          "source": {
-          "x": 0.0,
+          "x": 0.21999999999999997,
           "y": 1
          },
          "target": {
@@ -2481,7 +2500,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 805,
         "top": 596,
         "width": 140,
         "height": 80,
@@ -2535,7 +2554,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 656,
+        "left": 716,
         "top": 50,
         "width": 140,
         "height": 80,
@@ -2589,7 +2608,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 30,
         "width": 140,
         "height": 80,
@@ -2701,7 +2720,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 656,
+        "left": 716,
         "top": 180,
         "width": 140,
         "height": 80,
@@ -2755,7 +2774,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 160,
         "width": 140,
         "height": 80,
@@ -2848,7 +2867,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 656,
+        "left": 716,
         "top": 280,
         "width": 140,
         "height": 80,
@@ -2902,7 +2921,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 260,
         "width": 140,
         "height": 80,
@@ -2917,7 +2936,7 @@
        ],
        "connections": [
         {
-         "targetName": "bus:esquire.kc",
+         "targetName": "bus:esquire.claims",
          "path": "straight",
          "source": {
           "x": -1,
@@ -2928,12 +2947,12 @@
           "y": -0.1
          },
          "color": {
-          "fixed": "#D9C48A"
+          "fixed": "#7FC4BE"
          },
          "size": {
           "fixed": 2
          },
-         "direction": "both"
+         "direction": "forward"
         },
         {
          "targetName": "bus:esquire.entity",
@@ -3014,7 +3033,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 656,
+        "left": 716,
         "top": 380,
         "width": 140,
         "height": 80,
@@ -3068,7 +3087,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 360,
         "width": 140,
         "height": 80,
@@ -3082,6 +3101,25 @@
         }
        ],
        "connections": [
+        {
+         "targetName": "bus:esquire.claims",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.0
+         },
+         "target": {
+          "x": 1,
+          "y": -0.5
+         },
+         "color": {
+          "fixed": "#7FC4BE"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
         {
          "targetName": "bus:esquire.kc",
          "path": "straight",
@@ -3161,7 +3199,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 656,
+        "left": 716,
         "top": 480,
         "width": 140,
         "height": 80,
@@ -3215,7 +3253,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 460,
         "width": 140,
         "height": 80,
@@ -3234,11 +3272,11 @@
          "path": "straight",
          "source": {
           "x": -1,
-          "y": 0.66
+          "y": -0.0
          },
          "target": {
           "x": 1,
-          "y": -0.7944000000000001
+          "y": -0.9
          },
          "color": {
           "fixed": "#D9C48A"
@@ -3247,25 +3285,6 @@
           "fixed": 2
          },
          "direction": "both"
-        },
-        {
-         "targetName": "bus:esquire.entity",
-         "path": "straight",
-         "source": {
-          "x": -1,
-          "y": -0.66
-         },
-         "target": {
-          "x": 1,
-          "y": -1.0055999999999998
-         },
-         "color": {
-          "fixed": "#9DC08B"
-         },
-         "size": {
-          "fixed": 2
-         },
-         "direction": "reverse"
         },
         {
          "targetName": "keycloak",
@@ -3327,7 +3346,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 926,
+        "left": 986,
         "top": 125,
         "width": 140,
         "height": 80,
@@ -3381,7 +3400,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 830,
+        "left": 890,
         "top": 105,
         "width": 140,
         "height": 80,
@@ -3400,11 +3419,11 @@
          "path": "straight",
          "source": {
           "x": -1,
-          "y": 0.0
+          "y": 0.25
          },
          "target": {
           "x": 1,
-          "y": 0.52
+          "y": 0.56
          },
          "color": {
           "fixed": "#C9A0DC"
@@ -3415,26 +3434,26 @@
          "direction": "both"
         },
         {
-         "targetName": "enyman 0",
-         "path": "angled",
+         "targetName": "bus:esquire.claims",
+         "path": "straight",
          "source": {
-          "x": -0.22000000000000003,
-          "y": -1
+          "x": -1,
+          "y": -0.25
          },
          "target": {
           "x": 1,
-          "y": 0.75
+          "y": 0.48
          },
          "color": {
-          "fixed": "#000000"
+          "fixed": "#7FC4BE"
          },
          "size": {
-          "fixed": 1.25
+          "fixed": 2
          },
-         "direction": "forward"
+         "direction": "reverse"
         },
         {
-         "targetName": "biztree 0",
+         "targetName": "enyman 0",
          "path": "angled",
          "source": {
           "x": -0.66,
@@ -3453,10 +3472,29 @@
          "direction": "forward"
         },
         {
+         "targetName": "biztree 0",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.75
+         },
+         "target": {
+          "x": 1,
+          "y": 0.75
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
          "targetName": "keysmith 0",
          "path": "angled",
          "source": {
-          "x": 0.21999999999999997,
+          "x": 0.0,
           "y": -1
          },
          "target": {
@@ -3531,7 +3569,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 830,
+        "left": 890,
         "top": 460,
         "width": 140,
         "height": 80,
@@ -3585,7 +3623,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1176,
+        "left": 1236,
         "top": 125,
         "width": 140,
         "height": 80,
@@ -3639,7 +3677,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1080,
+        "left": 1140,
         "top": 105,
         "width": 140,
         "height": 80,
@@ -3877,7 +3915,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 348,
+        "left": 378,
         "top": 600,
         "width": 28,
         "height": 28,
@@ -3917,7 +3955,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 343,
+        "left": 373,
         "top": 618,
         "width": 140,
         "height": 19,
@@ -3957,7 +3995,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 343,
+        "left": 373,
         "top": 637,
         "width": 140,
         "height": 19,
@@ -3997,7 +4035,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 343,
+        "left": 373,
         "top": 656,
         "width": 140,
         "height": 19,
@@ -4037,7 +4075,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 805,
         "top": 618,
         "width": 140,
         "height": 19,
@@ -4077,7 +4115,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 805,
         "top": 637,
         "width": 140,
         "height": 19,
@@ -4117,7 +4155,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 805,
         "top": 656,
         "width": 140,
         "height": 19,
@@ -4153,7 +4191,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
+        "left": 625,
         "top": 34,
         "width": 28,
         "height": 28,
@@ -4193,7 +4231,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 52,
         "width": 140,
         "height": 19,
@@ -4233,7 +4271,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 71,
         "width": 140,
         "height": 19,
@@ -4273,7 +4311,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 90,
         "width": 140,
         "height": 19,
@@ -4312,7 +4350,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 52,
         "width": 96,
         "height": 18,
@@ -4352,7 +4390,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 72,
         "width": 96,
         "height": 19,
@@ -4392,7 +4430,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 91,
         "width": 96,
         "height": 19,
@@ -4432,7 +4470,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 110,
         "width": 96,
         "height": 19,
@@ -4468,7 +4506,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
+        "left": 625,
         "top": 164,
         "width": 28,
         "height": 28,
@@ -4508,7 +4546,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 182,
         "width": 140,
         "height": 19,
@@ -4548,7 +4586,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 201,
         "width": 140,
         "height": 19,
@@ -4588,7 +4626,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 220,
         "width": 140,
         "height": 19,
@@ -4627,7 +4665,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 182,
         "width": 96,
         "height": 18,
@@ -4667,7 +4705,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 202,
         "width": 96,
         "height": 19,
@@ -4707,7 +4745,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 221,
         "width": 96,
         "height": 19,
@@ -4747,7 +4785,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 240,
         "width": 96,
         "height": 19,
@@ -4783,7 +4821,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
+        "left": 625,
         "top": 264,
         "width": 28,
         "height": 28,
@@ -4823,7 +4861,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 282,
         "width": 140,
         "height": 19,
@@ -4863,7 +4901,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 301,
         "width": 140,
         "height": 19,
@@ -4903,7 +4941,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 320,
         "width": 140,
         "height": 19,
@@ -4942,7 +4980,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 282,
         "width": 96,
         "height": 18,
@@ -4982,7 +5020,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 302,
         "width": 96,
         "height": 19,
@@ -5022,7 +5060,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 321,
         "width": 96,
         "height": 19,
@@ -5062,7 +5100,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 340,
         "width": 96,
         "height": 19,
@@ -5098,7 +5136,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
+        "left": 625,
         "top": 364,
         "width": 28,
         "height": 28,
@@ -5138,7 +5176,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 382,
         "width": 140,
         "height": 19,
@@ -5178,7 +5216,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 401,
         "width": 140,
         "height": 19,
@@ -5218,7 +5256,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 420,
         "width": 140,
         "height": 19,
@@ -5257,7 +5295,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 382,
         "width": 96,
         "height": 18,
@@ -5297,7 +5335,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 402,
         "width": 96,
         "height": 19,
@@ -5337,7 +5375,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 421,
         "width": 96,
         "height": 19,
@@ -5377,7 +5415,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 440,
         "width": 96,
         "height": 19,
@@ -5413,7 +5451,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
+        "left": 625,
         "top": 464,
         "width": 28,
         "height": 28,
@@ -5453,7 +5491,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 482,
         "width": 140,
         "height": 19,
@@ -5493,7 +5531,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 501,
         "width": 140,
         "height": 19,
@@ -5533,7 +5571,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 620,
         "top": 520,
         "width": 140,
         "height": 19,
@@ -5572,7 +5610,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 482,
         "width": 96,
         "height": 18,
@@ -5612,7 +5650,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 502,
         "width": 96,
         "height": 19,
@@ -5652,7 +5690,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 521,
         "width": 96,
         "height": 19,
@@ -5692,7 +5730,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 700,
+        "left": 760,
         "top": 540,
         "width": 96,
         "height": 19,
@@ -5728,7 +5766,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 835,
+        "left": 895,
         "top": 109,
         "width": 28,
         "height": 28,
@@ -5768,7 +5806,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 830,
+        "left": 890,
         "top": 127,
         "width": 140,
         "height": 19,
@@ -5808,7 +5846,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 830,
+        "left": 890,
         "top": 146,
         "width": 140,
         "height": 19,
@@ -5848,7 +5886,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 830,
+        "left": 890,
         "top": 165,
         "width": 140,
         "height": 19,
@@ -5887,7 +5925,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 970,
+        "left": 1030,
         "top": 127,
         "width": 96,
         "height": 18,
@@ -5927,7 +5965,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 970,
+        "left": 1030,
         "top": 147,
         "width": 96,
         "height": 19,
@@ -5967,7 +6005,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 970,
+        "left": 1030,
         "top": 166,
         "width": 96,
         "height": 19,
@@ -6007,7 +6045,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 970,
+        "left": 1030,
         "top": 185,
         "width": 96,
         "height": 19,
@@ -6043,7 +6081,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 835,
+        "left": 895,
         "top": 464,
         "width": 28,
         "height": 28,
@@ -6083,7 +6121,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 830,
+        "left": 890,
         "top": 482,
         "width": 140,
         "height": 19,
@@ -6123,7 +6161,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 830,
+        "left": 890,
         "top": 501,
         "width": 140,
         "height": 19,
@@ -6163,7 +6201,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 830,
+        "left": 890,
         "top": 520,
         "width": 140,
         "height": 19,
@@ -6199,7 +6237,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1085,
+        "left": 1145,
         "top": 109,
         "width": 28,
         "height": 28,
@@ -6239,7 +6277,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1080,
+        "left": 1140,
         "top": 127,
         "width": 140,
         "height": 19,
@@ -6279,7 +6317,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1080,
+        "left": 1140,
         "top": 146,
         "width": 140,
         "height": 19,
@@ -6319,7 +6357,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1080,
+        "left": 1140,
         "top": 165,
         "width": 140,
         "height": 19,
@@ -6358,7 +6396,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1220,
+        "left": 1280,
         "top": 127,
         "width": 96,
         "height": 18,
@@ -6398,7 +6436,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1220,
+        "left": 1280,
         "top": 147,
         "width": 96,
         "height": 19,
@@ -6438,7 +6476,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1220,
+        "left": 1280,
         "top": 166,
         "width": 96,
         "height": 19,
@@ -6478,7 +6516,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 1220,
+        "left": 1280,
         "top": 185,
         "width": 96,
         "height": 19,
@@ -6565,6 +6603,84 @@
        "connections": []
       },
       {
+       "name": "bus:esquire.claims",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#7FC4BE"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 390,
+        "top": 25,
+        "width": 46,
+        "height": 500,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "buslabel:esquire.claims",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Claim Broadcast Bus    (esquire.claims)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 283.0,
+        "top": 264.0,
+        "width": 260,
+        "height": 22,
+        "rotation": -90
+       },
+       "connections": []
+      },
+      {
        "name": "bus:esquire.kc",
        "type": "rectangle",
        "background": {
@@ -6595,7 +6711,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 390,
+        "left": 450,
         "top": 25,
         "width": 46,
         "height": 500,
@@ -6634,7 +6750,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 283.0,
+        "left": 343.0,
         "top": 264.0,
         "width": 260,
         "height": 22,
@@ -6673,7 +6789,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 450,
+        "left": 510,
         "top": 25,
         "width": 46,
         "height": 500,
@@ -6712,7 +6828,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 343.0,
+        "left": 403.0,
         "top": 264.0,
         "width": 260,
         "height": 22,
@@ -7258,7 +7374,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 899,
+        "left": 959,
         "top": 612.0,
         "width": 330,
         "height": 16,
@@ -7297,7 +7413,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 899,
+        "left": 959,
         "top": 628.0,
         "width": 330,
         "height": 16,
@@ -7336,7 +7452,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 899,
+        "left": 959,
         "top": 644.0,
         "width": 330,
         "height": 16,
@@ -7423,7 +7539,7 @@
      "legendFormat": "recv <- {{bus_id}}"
     }
    ],
-   "description": "The two lanes above, as traffic. esquire.kc and esquire.entity are SEPARATE MEDIA with different participants -- which is what the two lanes in the picture say, and what a single bar (or a mesh of arrows) would hide."
+   "description": "The four lanes above, as traffic. esquire.biz, esquire.claims, esquire.kc and esquire.entity are SEPARATE MEDIA with different participants -- which is what the four lanes in the picture say, and what a single bar (or a mesh of arrows) would hide."
   },
   {
    "type": "timeseries",

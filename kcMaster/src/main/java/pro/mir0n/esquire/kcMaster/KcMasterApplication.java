@@ -17,6 +17,7 @@
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  * 07/08/2026 mir0n  @Import(TracingConfig.class): the common distributed-tracing wiring (v1.2.11 O2)
  * 08/12/2026 mir0n  v1.2.13 -- the package list moved to KcMasterConfig (@Import)
+ * 11/23/2026 mir0n  v2.0.3 -- the kc bus only: the entity bus is no longer built
  */
 
 package pro.mir0n.esquire.kcMaster;
@@ -83,7 +84,7 @@ public class KcMasterApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_KC, EsqConstants.BUS_KEY_ENTITY});
+                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_KC});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here

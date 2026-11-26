@@ -64,6 +64,10 @@
  *                   when none (meter op claims, span esq.svc.key.claims); a saved access profile is evicted over
  *                   the claims bus; with the claims bus on, the identity request carries no path and no roles;
  *                   the login id is saved in lower case
+ * 11/23/2026 mir0n  v2.0.3 -- evictClaims(): a save sends the DELETE of the access profile on the claims rod
+ *                   itself (the ClaimsBusPublisher out of the constructor); the identity request never carries
+ *                   the root path or the roles (identityEvent() loses its roles argument); the race-8c test hook
+ *                   (KEYSMITH_TEST_CONNECT_HOLD_MS) out
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -97,8 +101,8 @@ import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqUtils;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
-import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.messaging.BusConstants;
+import pro.mir0n.messaging.MessagingBus;
 import pro.mir0n.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
@@ -134,7 +138,6 @@ public class KeySmithService implements IKeySmithService {
     private EntityManager em;
     private IIdentityGateway identityGateway;
     private AuditBusBridge audit;
-    private ClaimsBusPublisher claimsBus;
 
     @Override
     @EsqTraced(name = "esq.svc.key.read", label = "read access profile")
@@ -247,28 +250,12 @@ public class KeySmithService implements IKeySmithService {
             return null;
         }); // <- transaction commits here
 
-        // TEST HOOK (race-8c reproduction): hold between capturing the entity path (read in the
-        // committed transaction above, now frozen in updated[0].getPath()) and publishing the
-        // activation URQ. A concurrent enyMan move can update ep_path during this window; keySmith
-        // then sends the now-STALE captured path, while the move's EVENT_UPDATE_PATH is skipped by
-        // kcMaster (the KC user does not exist until this URQ lands). Default 0 = disabled; set
-        // KEYSMITH_TEST_CONNECT_HOLD_MS only in repro tests, never in production.
-        long testHoldMs = 0L;
-        try { testHoldMs = Long.parseLong(System.getenv().getOrDefault("KEYSMITH_TEST_CONNECT_HOLD_MS", "0")); }
-        catch (NumberFormatException ignore) { /* keep 0 */ }
-        if (testHoldMs > 0L) {
-            devLog.debug("KeySmithService: esquireKeySave: TEST hold {}ms before URQ publish (race-8c repro); path={}",
-                    testHoldMs, updated[0] != null ? updated[0].getPath() : null);
-            try { Thread.sleep(testHoldMs); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-        }
-
         String command = identityCommand(oldConnectFlg[0], updated[0]);
-        identityGateway.postRequest(identityEvent(command, oldLoginId[0], updated[0], rolesAssigned[0],
-                correlationId, requestId));
+        identityGateway.postRequest(identityEvent(command, oldLoginId[0], updated[0], correlationId, requestId));
         // what keySmith ASKED the identity provider to do; kcMaster's esq.biz.kc.sync.total is what was DONE,
         // and a gap between the two is a sync that never landed
         BizMeters.count("esq.biz.key.identity.total", "op", command);
-        claimsBus.evict(String.valueOf(updated[0].getId()), correlationId, requestId);
+        evictClaims(String.valueOf(updated[0].getId()), correlationId, requestId);
 
         List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
         List<EsqPermission> permissions = null;
@@ -299,13 +286,13 @@ public class KeySmithService implements IKeySmithService {
 
     /**
      * The saved access profile as one identity command. Each command fills only the fields it is about: a
-     * delete needs the login id to remove, a create carries the whole profile including the path the new
-     * identity starts at, and an update carries what may have changed. On a create the provider knows nothing
-     * yet, so the login id is the saved one; otherwise it is the login id the provider still knows, and a
-     * rename travels as the new one beside it.
+     * delete needs the login id to remove, a create carries the login profile, and an update carries what may
+     * have changed. The root path and the roles never go: they stay in Esq2025. On a create the provider knows
+     * nothing yet, so the login id is the saved one; otherwise it is the login id the provider still knows, and
+     * a rename travels as the new one beside it.
      */
     private RodEvent identityEvent(String command, String oldLoginId, EsqAccessProfileJpa jpa,
-                                   List<EsqRoleJpa> roles, String correlationId, String requestId) {
+                                   String correlationId, String requestId) {
         String entityId = String.valueOf(jpa.getId());
         AuthSyncRequest req = new AuthSyncRequest();
         req.setId(entityId);
@@ -323,19 +310,6 @@ public class KeySmithService implements IKeySmithService {
             req.setPwdChangeForced(jpa.getPwdChangeForced());
             req.setTfaMethod(jpa.getTfaMethod());
             req.setConnectFlg(jpa.getConnectFlg());
-            //xxx: pure OAuth (lab) -- the root path and the roles stay in Esq2025
-            if (!claimsBus.isEnabled()) {
-                if (created) {
-                    req.setPath(jpa.getPath());
-                }
-                List<String> roleNames = new ArrayList<>();
-                if (roles != null) {
-                    for (EsqRoleJpa r : roles) {
-                        roleNames.add(r.getName());
-                    }
-                }
-                req.setRoles(roleNames);
-            }
         }
 
         // guarantee a non-null tracking id (the former testReqId; it rides as the requestId on the wire).
@@ -344,6 +318,15 @@ public class KeySmithService implements IKeySmithService {
         return new RodEvent(RodEvent.opFromCode(command), EsqConstants.KIND_ACCESS_PROFILE, entityId, null,
                 null, System.currentTimeMillis(), correlationId, reqId, null, null,
                 BusConstants.MSG_TYPE_REQUEST, req.toMap());
+    }
+
+    //xxx: every gateway drops the user's cached claims, so the next call reads the saved access profile
+    private static void evictClaims(String uid, String correlationId, String requestId) {
+        RodEvent e = new RodEvent(RodEvent.Op.DELETE, EsqConstants.KIND_ACCESS_PROFILE, uid, null, null,
+                System.currentTimeMillis(), correlationId, requestId, null, null,
+                BusConstants.MSG_TYPE_ENTITY_BROADCASTS, Map.of());
+        MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_CLAIMS).transmit(e);
+        log.info("CLAIMS | evict | {} | {}", uid, correlationId);
     }
 
     private void saveAccess(String id, Map<String, Object> fields, String rootPath,

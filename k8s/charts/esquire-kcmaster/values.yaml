@@ -34,12 +34,7 @@ keycloak:
   adminClientId: esq-kcMaster
   # adminClientSecret -> kc-admin-client-secret Secret, injected as env in the deployment.
   # NO chart default: helm-required, set via --set keycloak.adminClientSecret=... at install
-  # (same as the BFF keycloak.clientSecret / gateway exchangeClientSecret secrets).
-
-# path-buffer: in-flight KC path-sync de-dup window.
-pathBuffer:
-  ttlMs: "10000"
-  pruneMs: "30000"
+  # (same as the BFF keycloak.clientSecret secret).
 
 # kc-bus ref: kcMaster is the SERVER (receives KC requests, publishes responses).
 kc:
@@ -53,14 +48,6 @@ kc:
   sendRetryBackoff: "1,2,5,5"
   sendRetryMaxAttempts: "0"
   poolMode: "platform"            # KC_POOL_MODE (platform | virtual | virtual-per-task, default platform)
-
-# entity-bus ref: kcMaster is a CONSUMER of the entity broadcast.
-entity:
-  busId: esquire.entity
-  slotId: entity
-  broadcastPoolSize: "4"
-  broadcastConcurrency: "1"
-  poolMode: "platform"            # ENTITY_BROADCAST_POOL_MODE (platform | virtual | virtual-per-task, default platform)
 
 logging:
   levelRoot: ERROR
@@ -100,7 +87,3 @@ tracing:
   msgBusAliveTrace: "false"
   excludedPaths: "/actuator"
 
-# Pure OAuth (lab): on = the claims stay in Esq2025 (no root path, no roles to KeyCloak) and a change
-# removes the user from the gateway's claims cache over the claims bus. Off = the claims mode.
-pureOAuth:
-  enabled: false

@@ -53,10 +53,8 @@ resilience:
   dbSocketTimeoutSeconds: "35"    # R5
   dbTcpKeepAlive: "true"          # R5
 
-# producer send-retry (block mode) on the entity broadcast bus AND the KC R&R client leg.
+# producer send-retry (block mode) on the entity broadcast bus.
 entity:
-  sendRetry: "true"
-kc:
   sendRetry: "true"
 
 # OKE deploy = option (a) DB triggers: the app producer stays OFF (no auKeep pod, no extra broker

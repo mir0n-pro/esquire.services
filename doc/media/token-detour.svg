@@ -23,7 +23,7 @@
   <path class="edge" d="M300,96 C 230,130 180,140 152,168"/>
   <text class="detour" x="196" y="132">detour</text>
 
-  <rect class="step" x="40"  y="172" width="220" height="58" rx="8"/><text class="stept" x="150" y="206" text-anchor="middle">Plain JWT</text>
+  <rect class="step" x="40"  y="172" width="220" height="58" rx="8"/><text class="stept" x="150" y="206" text-anchor="middle">JWT with claims</text>
   <path class="edge" d="M260,201 L 306,201"/>
   <rect class="step" x="310" y="172" width="250" height="58" rx="8"/><text class="stept" x="435" y="206" text-anchor="middle">Vanilla Token Relay</text>
   <path class="edge" d="M560,201 L 606,201"/>

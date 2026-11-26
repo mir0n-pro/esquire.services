@@ -12,6 +12,10 @@
 #                   addresses, because the stack itself is identical everywhere (same meters, gauges, services)
 #                   and only Prometheus/Loki/Tempo live at different URLs. Same shape as e2e-test.bat / e2e-k8s.bat.
 # 11/18/2026 mir0n  v2.0.2 -- esq_biz_gw_pureoauth_total and esq_svc_key_claims_seconds in the expected meters
+# 11/22/2026 mir0n  v2.0.3 -- the token relay meters out; esq_biz_gw_oauth_total (was
+#                   esq_biz_gw_pureoauth_total) in the expected meters
+# 11/25/2026 mir0n  v2.0.3 -- check_bands(): gw.outer and every band read at one instant; promq() and _scalar()
+#                   take an optional evaluation time
 """
 Verify the Esquire observability stack is wired end to end, LIVE.
 
@@ -104,6 +108,8 @@ METERS_EXPECTED = [        # present whenever o11y is on and the fleet has serve
     "esq_biz_perm_check_total", "esq_biz_tree_handler_dispatch_total",
     "esq_biz_key_ops_total",                      # keySmith's own throughput -- the sign-in handshake reads an
                                                   # access profile, so any authenticated traffic fires it
+    "esq_biz_gw_oauth_total",                     # the gateway's claims cache (hit | miss | stale): every
+                                                  # authenticated call asks it
     "herald_keep_write_total",
     "herald_keep_write_duration_seconds",        # I48: twin of keep_write_total (EXPECTED), was drifting
     "http_server_requests_seconds", "esq_bff_inbound_duration_seconds",
@@ -125,10 +131,7 @@ METERS_CONDITIONAL = [     # legitimately EMPTY until the condition happens -- W
     "esq_biz_kc_sync_duration_seconds",           # identity is created or changed, not on ordinary traffic.
     "esq_biz_key_identity_total",                 # only when a save actually asks the identity provider for
                                                   # something -- a read-only run never fires it
-    "esq_biz_move_processed_total", "esq_biz_gw_tokenrelay_total", "esq_biz_gw_tokenrelay_acquire_total",
-    "esq_biz_gw_pureoauth_total",                 # the pure OAuth claim cache (hit | miss): empty unless a
-                                                  # client is on esq.gateway.pure-oauth.clients
-    "esq_biz_gw_tokenrelay_duration_seconds",
+    "esq_biz_move_processed_total",
     "messaging_error_total", "messaging_retry_backoff", "messaging_retry_dropped_total",
     # ---- I48: the @EsqTraced / EsqTraceMark OPERATION marks. -------------------------------------------------
     # These were verified by NOTHING. An Observation is CROSS-PILLAR (I41): each yields a span AND a timer, so
@@ -236,8 +239,10 @@ def _get(url, timeout=15):
         return json.load(r)
 
 
-def promq(expr):
+def promq(expr, at=None):
     url = PROM + "/api/v1/query?query=" + urllib.parse.quote(expr)
+    if at is not None:
+        url = url + "&time=" + at
     return _get(url)["data"]["result"]
 
 
@@ -821,11 +826,11 @@ def _panel_targets(title_prefix):
     return ret
 
 
-def _scalar(expr):
+def _scalar(expr, at=None):
     """The single value of a scalar PromQL expression, or None when it has no data (idle stack)."""
     ret = None
     try:
-        res = promq(expr)
+        res = promq(expr, at)
         if res:
             v = float(res[0]["value"][1])
             ret = None if v != v else v          # NaN -> None: honestly "no data", not a number
@@ -848,7 +853,7 @@ def check_bands():
 
     (3) is the load-bearing one. It is what makes a wrong band impossible to add quietly: the BFF<->gw network
     band was deliberately NOT added because esq.bff.outbound covers only what the BFF sends while gw.outer counts
-    direct Token Relay clients too -- had it been added, this check would have failed. The arithmetic enforces the
+    direct API clients (hauberk) too -- had it been added, this check would have failed. The arithmetic enforces the
     rule that the comment can only state.
     """
     head("BANDS -- the latency decomposition resolves and closes on gw.outer [I48/I47]")
@@ -857,7 +862,11 @@ def check_bands():
         fail("the DERIVED latency-bands panel was not found -- renamed? Then this check guards nothing.")
         return
 
-    outer = _scalar("1000 * (sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m])))")
+    #xxx: one instant for every query -- read apart, the rate windows move while samples land, and a sum that
+    # closes exactly by construction drifts past the tolerance
+    at = "%.3f" % time.time()
+    outer = _scalar("1000 * (sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m])))",
+                    at)
     if outer is None:
         warn("no gateway traffic in the rate window -- skipping the band checks (they need live requests, the "
              "same contract as the rest of this sweep)")
@@ -866,7 +875,7 @@ def check_bands():
     total = 0.0
     resolved = 0
     for legend, expr in targets:
-        v = _scalar(expr)
+        v = _scalar(expr, at)
         if v is None:
             fail("band %-38s does NOT resolve (empty) -- a band deleted by an empty subtrahend is invisible on "
                  "the panel, not loud" % legend)

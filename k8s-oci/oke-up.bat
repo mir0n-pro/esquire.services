@@ -45,10 +45,6 @@ rem var when you rotate the client secret in the production KC admin UI:
 rem   set bff_kc_secret=^<rotated-value^>
 if "%bff_kc_secret%"=="" set "bff_kc_secret=esq-angular-bff-dev-secret-rotate-in-prod"
 
-rem Phantom Token Relay -- esq-gw-exchange (confidential) client secret
-rem used by the gateway to authenticate to KC /token for RFC 8693 exchange.
-if "%gw_exchange_secret%"=="" set "gw_exchange_secret=esq-gw-exchange-dev-secret-rotate-in-prod"
-
 rem BFF session-cookie HMAC secret. Lower-risk than the KC client secret:
 rem leak alone doesn't grant access (session IDs are server-side random,
 rem session data is in MemoryStore not in the cookie). SAME default as the GHA
@@ -60,8 +56,8 @@ rem esq-kcMaster KC admin service-account client secret (client_credentials -> K
 rem way as the BFF / gateway KC secrets: --set at install, defaulting to the realm-import value. Override the env
 rem var if you rotate the esq-kcMaster secret in the production KC admin UI.
 rem esq-kcMaster is the ONE published client holding realm-management realm-admin -- every
-rem other service account (esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M) has none. Its
-rem secret is therefore the realm's master key, not one credential among seven.
+rem other service account (esq-hauberk) has none. Its
+rem secret is therefore the realm's master key, not one credential among three.
 rem
 rem NO FALLBACK AND NO SKIP, on any target, deliberately. A default reinstates the published
 rem value; a skip leaves the release running the OLD value after a rotation -- and both report
@@ -153,8 +149,7 @@ call helm upgrade --install esquire-kcmaster %CHARTS%\esquire-kcmaster ^
 echo --- Installing gateway...
 call helm upgrade --install esquire-gateway %CHARTS%\esquire-gateway ^
   -f values\gateway.yaml ^
-  --set image.tag=%IMAGE_TAG% ^
-  --set tokenRelay.phantom.exchangeClientSecret=%gw_exchange_secret% || exit /b 1
+  --set image.tag=%IMAGE_TAG% || exit /b 1
 
 echo Waiting for gateway...
 kubectl rollout status statefulset/esquire-gateway-gateway -n default --timeout=120s

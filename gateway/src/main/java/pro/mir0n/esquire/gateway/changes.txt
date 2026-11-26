@@ -1,5 +1,92 @@
 Esquire Gateway Microservice
 
+11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
+config.SecurityConfig
+  - v2.0.3 -- .oauth2Client() out;
+  - v2.0.3 -- TokenRelay= out of every route; the spring.security.oauth2.client registration (keycloak,
+    KEYCLOAK_CLIENT_ID) out
+pom.xml
+
+11/23/2026 mir0n  v2.0.3 -- the roles header parse and the preferred_username claim name from common
+bus.BizBusRoutingFilter
+  - v2.0.3 -- the roles header parse is EsqRequestScope.rolesOf(); the private rolesOf(String) out
+oauth.AuthenticationConverter
+  - v2.0.3 -- the preferred_username claim name is EsqConstants.JWT_CLAIM_PREFERRED_USERNAME; the own
+    CLAIM_PREFERRED_USERNAME out
+security.EsqAccessDeniedHandler
+  - v2.0.3 -- the preferred_username claim name is EsqConstants.JWT_CLAIM_PREFERRED_USERNAME; the own
+    CLAIM_PREFERRED_USERNAME out
+security.EsqClaimsValidator
+  - v2.0.3 -- the preferred_username claim name is EsqConstants.JWT_CLAIM_PREFERRED_USERNAME; the own
+    CLAIM_PREFERRED_USERNAME out
+
+11/23/2026 mir0n  v2.0.3 -- pure OAuth only: the claims mode and the lab leave the gateway
+oauth.IUserClaimsClient
+  - v2.0.3 -- moved from lab.pureoauth to oauth
+oauth.WebClientUserClaimsClient
+  - v2.0.3 -- moved from lab.pureoauth to oauth
+oauth.ClaimsCache
+  - v2.0.3 -- lab.pureoauth.PureOAuthClaimsCache -> oauth.ClaimsCache; meter esq.biz.gw.oauth.total
+oauth.AuthenticationConverter
+  - v2.0.3 -- lab.pureoauth.PureOAuthAuthenticationConverter -> oauth.AuthenticationConverter; every token's
+    authentication is built from the cached claims -- the client list, isPure() and the claims-mode converter
+    out
+oauth.HeaderFilter
+  - v2.0.3 -- lab.pureoauth.PureOAuthHeaderFilter -> oauth.HeaderFilter
+oauth.EvictionListener
+  - v2.0.3 -- lab.pureoauth.PureOAuthEvictionListener -> oauth.EvictionListener; always takes the claims rod
+    (the on / off flag out); log prefix OAUTH
+config.SecurityConfig
+  - v2.0.3 -- pure OAuth only: the JWE-aware decoder, the token relay (TokenRelayFilter, the keycloak.exchange
+    connection, assertRelayWiring) and the claims-mode converter (KeycloakRoleConverter) out; the
+    esq.gateway.oauth.* settings (cache-idle-ms, claims-uri, claims-timeout-ms) in place of esq.gateway.pure-
+    oauth.*, with no client list; the claimsCache bean always started, claims-uri required
+    (assertOAuthWiring); the evictionListener bean; AuthenticationConverter for every token;
+    EsqClaimsValidator with no client list; log prefix OAUTH
+config.KeycloakRoleConverter
+  - removed (v2.0.3): pure OAuth only
+security.EsqClaimsValidator
+  - v2.0.3 -- every token needs sub and preferred_username only; the claims-mode check and the client list out
+security.EsqAccessDeniedHandler
+  - v2.0.3 -- the caller is named from preferred_username or sub (esq_uid out)
+security.JwtClaimPeek
+  - removed (v2.0.3): pure OAuth only
+bus.BizBusRoutingFilter
+  - v2.0.3 -- uid / rootPath / roles from the X-Esq-* headers only; the token is not read (tokenOf,
+    rolesOf(Map) and the JwtClaimPeek use out)
+GatewayApplication
+  - v2.0.3 -- the claims bus is always built beside the biz bus
+lab.JweAwareJwtDecoder
+  - removed (v2.0.3): pure OAuth only
+lab.JwksController
+  - removed (v2.0.3): pure OAuth only
+lab.package-info
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.ExpiringJwt
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.ITokenRelayClient
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.ITokenRelayVariant
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.KcTokenRequest
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.PhantomTokenRelay
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.TokenRelayCache
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.TokenRelayFilter
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.VanillaTokenRelay
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.VariantAction
+  - removed (v2.0.3): pure OAuth only
+lab.tokenrelay.WebClientTokenRelayClient
+  - removed (v2.0.3): pure OAuth only
+resources/application.yml
+  - esq.gateway.oauth: cache-idle-ms (ESQ_GW_OAUTH_CACHE_IDLE_MS), claims-uri (ESQ_GW_OAUTH_CLAIMS_URI),
+    claims-timeout-ms (ESQ_GW_OAUTH_CLAIMS_TIMEOUT_MS) in place of esq.gateway.pure-oauth; the pure client
+    list, keycloak.exchange, esq.jwe and esq.gateway.token-relay out
+
 11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): the gateway takes the claims from keySmith
 lab.pureoauth.IUserClaimsClient  (new)
   - created (v2.0.2): pure OAuth (lab) -- fetch(loginId): the claims of a login id

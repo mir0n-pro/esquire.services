@@ -34,15 +34,10 @@ data:
   KC_REALM:                         {{ .Values.keycloak.realm | quote }}
   KC_ADMIN_CLIENT_ID:               {{ .Values.keycloak.adminClientId | quote }}
   # KC_ADMIN_CLIENT_SECRET: from kc-admin-client-secret (Secret) via the deployment env
-  # The race-8c path park. Nothing fills it within one copy; across copies the entity
-  # broadcast does -- a request reaches one pod, a broadcast reaches them all.
-  KCMASTER_PATH_BUFFER_TTL_MS:      {{ .Values.pathBuffer.ttlMs | quote }}
-  KCMASTER_PATH_BUFFER_PRUNE_MS:    {{ .Values.pathBuffer.pruneMs | quote }}
 
   ENYMAN_MOVE_QUEUE_CAPACITY:       {{ .Values.moveQueue.capacity | quote }}
   ENYMAN_VALIDATE_CREATE_DURING_MOVE: {{ .Values.moveQueue.validateCreateDuringMove | quote }}
-  # --- kc-bus ref (CLIENT: post URQ / receive URS) ---
-  # --- entity-bus ref (PUBLISHER: broadcast entity changes) ---
+  # --- entity-bus ref (CLIENT: broadcast entity changes, receive the peers' creates) ---
   ENTITY_BUS_ID:                    {{ .Values.entity.busId | quote }}
   ENTITY_SLOT_ID:                {{ .Values.entity.slotId | quote }}
   ENTITY_BROADCAST_PUBLISHER_POOL_SIZE: {{ .Values.entity.broadcastPublisherPoolSize | quote }}
@@ -60,8 +55,6 @@ data:
   DB_DATAKEEP_USERNAME:  {{ .Values.audit.datasource.username | quote }}
   DB_DATAKEEP_POOL_SIZE: {{ .Values.audit.datasource.poolSize | quote }}
   # DB_DATAKEEP_PASSWORD: chains from DB_MESNIE_PASSWORD (Secret) via application.yml
-  # --- pure OAuth (lab): no root path and no roles to KeyCloak; changes evict the gateway's claims cache ---
-  ESQ_PURE_OAUTH:                 {{ .Values.pureOAuth.enabled | quote }}
   # --- logging ---
   LOG_LEVEL_ROOT:                   {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:                     {{ .Values.logging.levelSf | quote }}

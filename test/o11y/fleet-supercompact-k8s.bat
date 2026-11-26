@@ -4,19 +4,20 @@ rem fleet-supercompact-k8s.bat -- the SUPER-COMPACT fleet as kubernetes labels i
 rem
 rem Super-compact is the compact composition with audit on option (a): DB triggers,
 rem so no auKeep process exists and no audit bus carries traffic. Four processes --
-rem Mesnie, gateWard, pacMan and the BFF. This is the cloud model (OKE, AWS).
+rem Mesnie, gateWard, paacMan and the BFF. This is the cloud model (OKE, AWS). pacMan's
+rem image is pushed with the release, but pacMan does not run there.
 rem
 rem Called (not run) by the OKE compact launchers: no setlocal here.
 rem ===========================================================================
 
 rem SERVICES = the metrics `application` label -- the PROCESS, short name.
-set SERVICES=gateward,mesnie,pacman
+set SERVICES=gateward,mesnie,paacman
 
 rem The trace nodes are PROCESSES too (the collector rewrites service.name to
 rem <app>.<instance>), so compact has a gateward node where classic has gateway
 rem and biztree, and a mesnie node where it has three.
 set TRACE_NODES=gateward,esq-backend
-set TRACE_NODES_CONDITIONAL=mesnie,pacman
+set TRACE_NODES_CONDITIONAL=mesnie,paacman
 
 rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the WORKLOAD name,
 rem not the short meter name. The COMPACT charts stamp the bare release name
@@ -24,7 +25,7 @@ rem (esquire-mesnie) on OKE as on the local cluster; only the CLASSIC charts app
 rem the service (esquire-enyman-enyman). Without it the log-stream
 rem sweep looks for streams that do not exist and FAILs every service while the logs
 rem are being shipped perfectly well.
-set LOG_SERVICES=esquire-gateward,esquire-mesnie,esquire-pacman,esquire-backend
+set LOG_SERVICES=esquire-gateward,esquire-mesnie,esquire-paacman,esquire-backend
 
 rem No auKeep process on this profile, so the keep-write meters and the keep-apply gauge never
 rem exist -- asserting them would be a permanent false FAIL. The trace side needs no exclusion:

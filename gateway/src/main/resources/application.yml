@@ -1,50 +1,11 @@
-# The gate's own KeyCloak connection, in the shape every Esquire service configures one: endpoint, realm,
-# credentials, and the two deadlines. kcMaster configures its admin client the same way under
-# `keycloak.admin`, with its own credentials. The token endpoint is built from base-url + realm, so a
-# deployment that reaches KeyCloak on a different host than the browser login does says so here and
-# nowhere else.
-keycloak:
-  exchange:
-    base-url:           ${KC_EXCHANGE_BASE_URL:}
-    realm:              ${KEYCLOAK_REALM:esquire}
-    client-id:          ${ESQ_GW_EXCHANGE_CLIENT_ID:}
-    client-secret:      ${ESQ_GW_EXCHANGE_CLIENT_SECRET:}
-    connect-timeout-ms: ${KC_EXCHANGE_CONNECT_TIMEOUT_MS:5000}
-    read-timeout-ms:    ${KC_EXCHANGE_READ_TIMEOUT_MS:10000}
-
 esq:
-  jwe:
-    # When set, JweAwareJwtDecoder is wired and JwksController serves the public
-    # key at GET /jwe-jwks so KC can fetch it to encrypt access tokens. Blank or
-    # missing -> plain JWS decoder (v1.2.3 baseline). Compose mounts the keypair
-    # via volume; ESQ_JWE_PRIVATE_KEY_PATH points at the in-container path.
-    private-key-path: ${ESQ_JWE_PRIVATE_KEY_PATH:}
   gateway:
-    token-relay:
-      # Token Relay umbrella -- the gateway brokers/exchanges JWTs on behalf
-      # of inbound clients and forwards a full JWT downstream. Two variants
-      # share one KeyCloak connection, configured under `keycloak.exchange`:
-      #   - Vanilla Token Relay: client sends HTTP Basic; gateway runs
-      #     client_credentials grant using the client's own credentials,
-      #     caches per client_id.
-      #   - Phantom Token Relay: client sends a stripped Bearer JWT; gateway
-      #     runs RFC 8693 token-exchange authenticated as the dedicated
-      #     esq-gw-exchange confidential client, caches per jti.
-      # The lists below say WHOSE requests are relayed, matched on the caller's
-      # client id -- everyone else passes through on the plain JWT path. Both
-      # variants are dormant when their `clients` allowlist is empty.
-      vanilla:
-        clients: ${ESQ_GW_VANILLA_CLIENTS:}
-      phantom:
-        clients: ${ESQ_GW_PHANTOM_CLIENTS:}
-    # Pure OAuth (lab): for a client on this list the token carries no Esquire claims; the gateway takes
-    # them from keySmith (claims-uri) into a cache kept while asked for, and sends them on as headers.
-    # Off while the list is empty.
-    pure-oauth:
-      clients:           ${ESQ_GW_PURE_OAUTH_CLIENTS:}
-      cache-idle-ms:     ${ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS:60000}
-      claims-uri:        ${ESQ_GW_PURE_OAUTH_CLAIMS_URI:http://${KEYSMITH_HOST:biztree}:${KEYSMITH_PORT:3002}/esq-claims}
-      claims-timeout-ms: ${ESQ_GW_PURE_OAUTH_CLAIMS_TIMEOUT_MS:5000}
+    # OAuth: the token carries the login id only; the gateway takes the Esquire claims from keySmith
+    # (claims-uri) into a cache kept while asked for, and sends them on as headers.
+    oauth:
+      cache-idle-ms:     ${ESQ_GW_OAUTH_CACHE_IDLE_MS:60000}
+      claims-uri:        ${ESQ_GW_OAUTH_CLAIMS_URI:http://${KEYSMITH_HOST:biztree}:${KEYSMITH_PORT:3002}/esq-claims}
+      claims-timeout-ms: ${ESQ_GW_OAUTH_CLAIMS_TIMEOUT_MS:5000}
     # Resilience knobs (gateway -> backend). All env-overridable; ResilienceConfig
     # reads the circuit-breaker block to build the Resilience4j CircuitBreaker +
     # TimeLimiter, and the Retry filters below reference the retry block. The
@@ -174,7 +135,7 @@ herald:
         send-retry: ${BIZ_SEND_RETRY:false}
         send-retry-backoff-sec: ${BIZ_SEND_RETRY_BACKOFF_SEC:1,2,5}
         send-retry-max-attempts: ${BIZ_SEND_RETRY_MAX_ATTEMPTS:3}
-  # Pure OAuth (lab): the eviction topic; built only while a client is on esq.gateway.pure-oauth.clients.
+  # OAuth: the eviction topic -- keySmith and enyMan tell every gateway replica to drop a user's claims.
   claims-bus:
     messaging-bus:
       bus-id: ${CLAIMS_BUS_ID:esquire.claims}
@@ -264,7 +225,6 @@ spring:
              #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: biztree-route
           uri: http://${BIZTREE_HOST:biztree}:${BIZTREE_PORT:3002}
           predicates:
@@ -295,7 +255,6 @@ spring:
              #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: pacman-route
           uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
@@ -327,7 +286,6 @@ spring:
             #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
@@ -358,7 +316,6 @@ spring:
             #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: pacman-save-route
           uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
@@ -389,7 +346,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-save-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
@@ -419,7 +375,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: keysmith-save-route
           uri: http://${KEYSMITH_HOST:biztree}:${KEYSMITH_PORT:3002}
           predicates:
@@ -449,7 +404,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-new-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
@@ -479,7 +433,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: pacman-del-route
           uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
@@ -510,7 +463,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-del-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
@@ -540,7 +492,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: pacman-acct-route
           uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
@@ -571,7 +522,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-move-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
@@ -601,7 +551,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-tree-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
@@ -631,7 +580,6 @@ spring:
                   basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
 
 #  autoconfigure:
 #   exclude: org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration
@@ -648,20 +596,6 @@ spring:
       max-age: 3600
       exposed-headers: ["X-Request-ID", "X-Correlation-ID", "X-Response-Time", "Esq-Gw-Inner-Time", "Esq-Srv-Outer-Time", "Esq-Srv-Inner-Time"]
     oauth2:
-      client:
-        registration:
-          keycloak:
-            client-id: ${KEYCLOAK_CLIENT_ID:esq-angular}
-            authorization-grant-type: authorization_code
-            scope: openid
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-        provider:
-          keycloak:
-            enable-cors: true
-            authorization-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/auth
-            token-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/token
-            jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs
-            user-info-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/userinfo
       resourceserver:
         jwt:
           jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs
