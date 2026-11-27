@@ -1,5 +1,11 @@
 Esquire Common microservice classes
 
+11/27/2026 mir0n  v2.0.4 -- the BLINKY role: the Apps permissions
+esq-entity-dictionaries.xml
+  - v2.0.4 -- access profile layer 5 "Apps" (field apps, tab-iknf-table "App Name,Allowed")
+esq-object-kinds.xml
+  - v2.0.4 -- kind 984 apps "App permissions" in place of the reserved comment
+
 11/25/2026 mir0n  v2.0.3 -- code review: what the claims mode left behind
 EsqConstants
   - v2.0.3 -- JWT_CLAIM_ENTITY_ID and JWT_CLAIM_ENTITY_ROOTPATH removed

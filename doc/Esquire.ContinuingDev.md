@@ -834,6 +834,32 @@ deliverable**; the items below are the backlog it would have caught.
 - **Infra images to bump as one set** (all pinned and working; listed so it is one task, not several): Grafana,
   Prometheus, Loki, Tempo, OTel Collector, Alloy, Kafka, KeyCloak, ActiveMQ, Postgres.
 
+### CD-34 -- An e2e sign-in that stops on the Keycloak page (recheck on the next Keycloak update)
+
+**A known e2e failure on the docker stack, not followed to its cause.** Now and then a test signs in, the
+browser starts to load the Keycloak sign-in page, and the page never finishes loading. There is no answer,
+no error, and no redirect. `helpers/auth.ts` waits for that page with `waitForURL`, and after 30 seconds
+the test fails.
+
+**What was seen** (Keycloak 26.6.0, docker classic):
+
+- 2 failures in 30 runs of spec `25-oauth-eviction`, with no retries. Spec `11-deposit` failed the same
+  way at its sign-in.
+- Keycloak logs nothing at that moment.
+- A normal sign-in loads the page, its stylesheet, and two icons in about 10 ms.
+- With a recorder that timed each Keycloak request, there were 0 failures in 110 runs. Watching it closely
+  hides it.
+- 600 fresh connections from the host to ports 8081 and 4200, without a browser: none stalled.
+
+**The failure snapshot misleads.** Playwright shows the page that `afterAll` signed in, not the page that
+hung. That page reads "Super Vizor", signed in, and looks like a sign-in that skipped Keycloak.
+
+**What to do on the next Keycloak update.** Run spec 25 thirty times with no retries, before and after the
+update: `npx playwright test 25-oauth --repeat-each=30 --retries=0`. If the rate changes, the update moved
+it. If it stays, the cause is on our side, and a Chromium network log of a failing run is the next step.
+
+**Raised:** 2026-11-27, during v2.0.4.
+
 ---
 
 ## New-feature directions

@@ -6,13 +6,12 @@
     <parent>
         <groupId>pro.mir0n.esquire</groupId>
         <artifactId>esquire-parent</artifactId>
-<!-- xxx: we need a stable parent version to be referenced correctly -->
-        <version>2.0.0</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>esquire-kc-master</artifactId>
-    <version>${kcMaster.version}</version>
+    <!--version>${kcMaster.version}</version-->
 
     <url/>
 
@@ -23,7 +22,7 @@
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
             <artifactId>esquire-common</artifactId>
-            <version>${common.version}</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>pro.mir0n</groupId>

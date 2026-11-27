@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Esquire Haubergeon -- logging.
+
+  Without this file logback logs everything at DEBUG, Gatling's per-request dump included: one 20 s load
+  at 8 VUs printed 145 MB, and perf-matrix keeps each load's output in memory to parse the summary.
+  Gatling's console summary is printed directly, not through logback, so INFO keeps it as it is.
+-->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

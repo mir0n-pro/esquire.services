@@ -6,14 +6,13 @@
     <parent>
         <groupId>pro.mir0n.esquire</groupId>
         <artifactId>esquire-parent</artifactId>
-<!-- xxx: we need a stable parent version to be referenced correctly -->
-        <version>2.0.0</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
    
 
     <artifactId>esquire-key-smith</artifactId>
-    <version>${keySmith.version}</version>
+    <!--version>${keySmith.version}</version-->
     <!-- version>1.2.1</version -->
 
     <url/>
@@ -25,7 +24,7 @@
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
             <artifactId>esquire-common</artifactId>
-            <version>${common.version}</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>pro.mir0n</groupId>
@@ -35,7 +34,7 @@
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
             <artifactId>esquire-audit</artifactId>
-            <version>${audit.version}</version>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- transport providers (tp) for the x-Rod audit publish seam. Each tp module brings its transport

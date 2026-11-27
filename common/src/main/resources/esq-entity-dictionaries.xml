@@ -1492,6 +1492,20 @@
                         </field>
                     </fields>
                 </layer>
+                <layer>
+                    <layer>5</layer>
+                    <title>Apps</title>
+                    <fields>
+                        <field>
+                            <name>apps</name>
+                            <sort>1</sort>
+                            <label>App Name,Allowed</label>
+                            <type>tab-iknf-table</type>
+                            <tooltip>List of applications available</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
             </layers>
         </dictionary>
 

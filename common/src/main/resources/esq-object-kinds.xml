@@ -484,7 +484,13 @@
       <title>Tool permissions</title>
       <desc>Tool permissions/role</desc>
     </kind>
-<!-- 984: Reserved Role/Permissions kind: Applications -->
+<!-- Role/Permissions kind: Applications -->
+    <kind>
+      <id>984</id>
+      <name>apps</name>
+      <title>App permissions</title>
+      <desc>App permissions/role</desc>
+    </kind>
 <!-- 986: Reserved Role/Permissions kind: Reports -->
 
 <!-- Postal address -->

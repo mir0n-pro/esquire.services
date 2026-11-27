@@ -6,12 +6,12 @@
     <parent>
         <groupId>pro.mir0n.esquire</groupId>
         <artifactId>esquire-parent</artifactId>
-        <version>2.0.0</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>esquire-gate-ward</artifactId>
-    <version>${gateWard.version}</version>
+    <!--version>${gateWard.version}</version-->
 
     <url/>
 
@@ -23,7 +23,7 @@
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
             <artifactId>esquire-gateway</artifactId>
-            <version>${gateway.version}</version>
+            <version>${project.version}</version>
             <classifier>classes</classifier>
         </dependency>
 
@@ -36,7 +36,7 @@
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
             <artifactId>esquire-biz-tree</artifactId>
-            <version>${bizTree.version}</version>
+            <version>${project.version}</version>
             <classifier>classes</classifier>
             <exclusions>
                 <exclusion>

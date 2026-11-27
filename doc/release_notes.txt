@@ -1,6 +1,15 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.4-2611.2712  v2.0.4 -- T0: the BLINKY role
+    :Feature:     the access profile has an Apps tab, listing the apps a user may run
+    :Feature:     a kind for app roles and permissions, next to the admin and tool ones
+    :Config:      the database image pin moves to v2.0.4-2611.2712, the release of the BLINKY role
+    :Doc:         Esquire.ContinuingDev.md
+    Components:   common,
+                  postgres,
+                  doc
+
 v2.0.3-2611.2602  v2.0.3 -- finalization: the docs describe one kind of sign-in
     :Doc:         README.md
                   Releases.md
